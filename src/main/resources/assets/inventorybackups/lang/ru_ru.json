@@ -48,7 +48,10 @@
 
   "invbackups.info.inventory_restored": "Ваш инвентарь был восстановлен до: %s",
   "invbackups.info.viewing": "Просмотр копии: %s",
+  "invbackups.info.viewing_copyable": "Просмотр копии: %s (перетащите предметы для копирования)",
   "invbackups.info.viewing_player": "Просмотр и редактирование инвентаря игрока: %s",
+
+  "invbackups.success.item_copied": "Скопировано %s из резервной копии",
 
   "invbackups.preview.title": "Просмотр: %s - %s",
   "invbackups.player.title": "Инвентарь игрока: %s",

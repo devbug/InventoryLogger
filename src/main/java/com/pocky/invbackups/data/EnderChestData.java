@@ -7,12 +7,14 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.EnderChestBlockEntity;
 import net.neoforged.neoforge.common.util.JsonUtils;
 import com.pocky.invbackups.io.JsonFileHandler;
+import com.pocky.invbackups.io.AsyncBackupExecutor;
 import net.minecraft.world.SimpleContainer;
 
 import java.io.Serializable;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Data class for storing ender chest inventory backups
@@ -47,6 +49,25 @@ public class EnderChestData implements Serializable {
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    /**
+     * Save asynchronously (non-blocking)
+     */
+    public CompletableFuture<Void> saveAsync(UUID playerUUID, String suffix) {
+        String description = playerUUID.toString() + "/enderchest/" + 
+            (suffix != null && !suffix.isEmpty() ? suffix : "auto");
+        
+        return AsyncBackupExecutor.saveAsync(() -> {
+            save(playerUUID, suffix);
+        }, description);
+    }
+
+    /**
+     * Save asynchronously with death flag
+     */
+    public CompletableFuture<Void> saveAsync(UUID playerUUID, boolean isPlayerDead) {
+        return saveAsync(playerUUID, isPlayerDead ? "death" : null);
     }
 
     /**

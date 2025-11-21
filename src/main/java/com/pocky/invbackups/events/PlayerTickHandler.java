@@ -74,7 +74,13 @@ public class PlayerTickHandler {
             return;
         }
         lastInventory.put(player, data);
-        data.save(player.getUUID(), false);
+        
+        // ✅ Async save (non-blocking)
+        data.saveAsync(player.getUUID(), null)
+            .exceptionally(ex -> {
+                InventoryBackupsMod.LOGGER.error("Failed to save inventory for " + player.getName().getString(), ex);
+                return null;
+            });
     }
 
     private void saveEnderChest(ServerPlayer player) {
@@ -98,6 +104,12 @@ public class PlayerTickHandler {
             return;
         }
         lastEnderChest.put(player, data);
-        data.save(player.getUUID(), false);
+        
+        // ✅ Async save (non-blocking)
+        data.saveAsync(player.getUUID(), null)
+            .exceptionally(ex -> {
+                InventoryBackupsMod.LOGGER.error("Failed to save ender chest for " + player.getName().getString(), ex);
+                return null;
+            });
     }
 }

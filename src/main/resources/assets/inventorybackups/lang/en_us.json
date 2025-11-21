@@ -48,7 +48,10 @@
 
   "invbackups.info.inventory_restored": "Your inventory has been restored to: %s",
   "invbackups.info.viewing": "Viewing backup: %s",
+  "invbackups.info.viewing_copyable": "Viewing backup: %s (drag items to copy)",
   "invbackups.info.viewing_player": "Viewing and editing inventory of player: %s",
+
+  "invbackups.success.item_copied": "Copied %s from backup",
 
   "invbackups.preview.title": "Preview: %s - %s",
   "invbackups.player.title": "Player Inventory: %s",

@@ -35,6 +35,7 @@ public class InventoryBackupsMod {
         NeoForge.EVENT_BUS.register(new PlayerConnectionEvent());
         NeoForge.EVENT_BUS.register(new ServerTickHandler());
         NeoForge.EVENT_BUS.register(new com.pocky.invbackups.events.EnderChestOpenEvent());
+        NeoForge.EVENT_BUS.register(new com.pocky.invbackups.events.ContainerCloseEvent());
 
         NeoForge.EVENT_BUS.register(this);
         LOGGER.info("InventoryBackups mod initialized successfully!");
@@ -50,6 +51,7 @@ public class InventoryBackupsMod {
         PlayerTickHandler.PERIOD = InventoryConfig.general.preservationPeriod.get();
         PlayerConnectionEvent.joinSaveEnabled = InventoryConfig.general.joinSaveEnabled.get();
         PlayerConnectionEvent.quitSaveEnabled = InventoryConfig.general.quitSaveEnabled.get();
+        com.pocky.invbackups.events.ContainerCloseEvent.containerCloseSaveEnabled = InventoryConfig.general.containerCloseSaveEnabled.get();
 
         // Ender chest configuration
         PlayerTickHandler.enderChestTickSaveEnabled = InventoryConfig.general.enderChestTickSaveEnabled.get();
@@ -64,6 +66,7 @@ public class InventoryBackupsMod {
         LOGGER.info("  - Death save enabled: {}", PlayerDeadEvent.deadSaveEnabled);
         LOGGER.info("  - Join save enabled: {}", PlayerConnectionEvent.joinSaveEnabled);
         LOGGER.info("  - Quit save enabled: {}", PlayerConnectionEvent.quitSaveEnabled);
+        LOGGER.info("  - Container close save enabled: {}", com.pocky.invbackups.events.ContainerCloseEvent.containerCloseSaveEnabled);
 
         if (InventoryConfig.general.enderChestEnabled.get()) {
             LOGGER.info("Ender Chest Backup Configuration:");

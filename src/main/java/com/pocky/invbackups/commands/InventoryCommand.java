@@ -274,22 +274,26 @@ public class InventoryCommand {
             return 0;
         }
 
+        // Store original items for infinite copying
+        java.util.Map<Integer, ItemStack> originalItems = invData.decode(executor.level().registryAccess());
+        
         Container chestContainer = new SimpleContainer(54);
 
         AtomicInteger slotId = new AtomicInteger();
-        invData.decode(executor.level().registryAccess()).forEach((i, e) -> {
-            chestContainer.setItem(slotId.get(), e);
+        originalItems.forEach((i, e) -> {
+            chestContainer.setItem(slotId.get(), e.copy());
             slotId.getAndIncrement();
         });
 
         MenuProvider chestMenuProvider = new SimpleMenuProvider(
-                (id, playerInv, playerEntity) -> new ChestFakeMenu(MenuType.GENERIC_9x6, id, playerInv, chestContainer, 6),
+                (id, playerInv, playerEntity) -> new ChestCopyableMenu(
+                        MenuType.GENERIC_9x6, id, playerInv, chestContainer, 6, originalItems),
                 Component.translatable("invbackups.preview.title", resolved.getName(), date)
                         .withStyle(style -> style.withColor(net.minecraft.ChatFormatting.GOLD))
         );
 
         executor.openMenu(chestMenuProvider);
-        ChatUI.showInfo(executor, Component.translatable("invbackups.info.viewing",
+        ChatUI.showInfo(executor, Component.translatable("invbackups.info.viewing_copyable",
                 Component.literal(date).withStyle(net.minecraft.ChatFormatting.WHITE)).getString());
 
         return 1;
@@ -621,6 +625,132 @@ public class InventoryCommand {
         }
     }
 
+    /**
+     * Copyable backup preview menu - allows dragging items to copy them infinitely
+     */
+    private static class ChestCopyableMenu extends ChestMenu {
+        private final java.util.Map<Integer, ItemStack> originalItems;
+        private final Container chestContainer;
+        private final int containerSize;
+
+        public ChestCopyableMenu(MenuType<?> menuType, int containerId,
+                                 Inventory playerInv, Container container,
+                                 int rows, java.util.Map<Integer, ItemStack> original) {
+            super(menuType, containerId, playerInv, container, rows);
+            this.originalItems = original;
+            this.chestContainer = container;
+            this.containerSize = rows * 9; // 54 slots for 6 rows
+        }
+
+        @Override
+        protected Slot addSlot(Slot slot) {
+            // Backup item slots (upper chest) - based on slot index
+            if (slot.container == this.chestContainer) {
+                return super.addSlot(new CopyableBackupSlot(
+                        slot.container,
+                        slot.getSlotIndex(),
+                        slot.x,
+                        slot.y,
+                        originalItems
+                ));
+            }
+            // Player inventory slots (lower)
+            return super.addSlot(slot);
+        }
+
+        @Override
+        public ItemStack quickMoveStack(Player player, int index) {
+            // Shift+click handling
+            Slot slot = this.slots.get(index);
+            if (!slot.hasItem()) {
+                return ItemStack.EMPTY;
+            }
+
+            ItemStack slotStack = slot.getItem();
+
+            // From backup slots to player inventory
+            if (index < 54) {
+                ItemStack copy = slotStack.copy();
+
+                // Try to add to player inventory
+                if (!this.moveItemStackTo(copy, 54, this.slots.size(), true)) {
+                    return ItemStack.EMPTY;
+                }
+
+                // Restore original item in backup slot (keep source)
+                ItemStack original = originalItems.get(index);
+                if (original != null) {
+                    slot.set(original.copy());
+                }
+
+                // Success message
+                if (player instanceof ServerPlayer sp) {
+                    ChatUI.showSuccess(sp,
+                            Component.translatable("invbackups.success.item_copied",
+                                    Component.literal(copy.getHoverName().getString())
+                                            .withStyle(net.minecraft.ChatFormatting.WHITE)).getString());
+                }
+
+                return copy;
+            }
+
+            return ItemStack.EMPTY;
+        }
+
+        @Override
+        public boolean stillValid(Player player) {
+            return true;
+        }
+
+        /**
+         * Copyable backup slot - allows infinite copying
+         */
+        private static class CopyableBackupSlot extends Slot {
+            private final java.util.Map<Integer, ItemStack> originalItems;
+
+            public CopyableBackupSlot(Container container, int index,
+                                      int x, int y, java.util.Map<Integer, ItemStack> original) {
+                super(container, index, x, y);
+                this.originalItems = original;
+            }
+
+            @Override
+            public boolean mayPlace(ItemStack stack) {
+                return false;  // Cannot place items in backup slot
+            }
+
+            @Override
+            public boolean mayPickup(Player player) {
+                return true;  // ✅ Can pick up items!
+            }
+
+            @Override
+            public void onTake(Player player, ItemStack stack) {
+                // Give player a copy
+                ItemStack copy = stack.copy();
+
+                // Restore original item in backup slot (infinite copying)
+                ItemStack original = originalItems.get(this.getSlotIndex());
+                if (original != null && !original.isEmpty()) {
+                    this.container.setItem(this.getSlotIndex(), original.copy());
+                }
+
+                // Success message
+                if (player instanceof ServerPlayer sp) {
+                    ChatUI.showSuccess(sp,
+                            Component.translatable("invbackups.success.item_copied",
+                                    Component.literal(copy.getHoverName().getString())
+                                            .withStyle(net.minecraft.ChatFormatting.WHITE)).getString());
+                }
+
+                super.onTake(player, stack);
+            }
+        }
+    }
+
+    /**
+     * Read-only preview menu (for ender chest)
+     */
     private static class ChestFakeMenu extends ChestMenu {
 
         public ChestFakeMenu(MenuType<?> p_39229_, int p_39230_, Inventory p_39231_, Container p_39232_, int p_39233_) {
@@ -633,26 +763,25 @@ public class InventoryCommand {
 
         @Override
         public boolean stillValid(Player player) {
-            return true;  // Игрок может продолжать смотреть инвентарь
+            return true;
         }
 
         @Override
         public ItemStack quickMoveStack(Player player, int index) {
-            return ItemStack.EMPTY;  // Отключаем возможность перемещения предметов shift-кликом
+            return ItemStack.EMPTY;
         }
 
         @Override
         protected Slot addSlot(Slot slot) {
-            // Делаем все слоты только для просмотра (запрещаем перемещение)
             return super.addSlot(new Slot(slot.container, slot.getSlotIndex(), slot.x, slot.y) {
                 @Override
                 public boolean mayPlace(ItemStack stack) {
-                    return false;  // Запрещаем класть предметы
+                    return false;
                 }
 
                 @Override
                 public boolean mayPickup(Player player) {
-                    return false;  // Запрещаем забирать предметы
+                    return false;
                 }
             });
         }

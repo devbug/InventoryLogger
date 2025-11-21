@@ -5,12 +5,14 @@
 ![Minecraft](https://img.shields.io/badge/Minecraft-1.21.1-green?style=for-the-badge&logo=minecraft)
 ![NeoForge](https://img.shields.io/badge/NeoForge-52.0.19-orange?style=for-the-badge)
 ![Java](https://img.shields.io/badge/Java-21-blue?style=for-the-badge&logo=openjdk)
-![Localization](https://img.shields.io/badge/Languages-EN%20%7C%20RU-blue?style=for-the-badge)
+![Localization](https://img.shields.io/badge/Languages-EN%20%7C%20RU%20%7C%20KO-blue?style=for-the-badge)
 ![License](https://img.shields.io/badge/License-All%20Rights%20Reserved-red?style=for-the-badge)
 
 **A powerful Minecraft NeoForge mod for automatic player inventory backups and restoration**
 
 [Features](#-features) • [Installation](#-installation) • [Commands](#-commands) • [Configuration](#-configuration) • [Building](#-building)
+
+📖 **[한국어 문서 (Korean Documentation)](README_KR.md)**
 
 </div>
 
@@ -60,12 +62,15 @@ Quick filters: [📅 Today] [Yesterday] [This Month] [All]
 - 🎨 **Color-coded UI** - Easy-to-read colored text and buttons
 
 ### 🎮 Advanced Features
-- **👁️ Preview Mode** - View backups in read-only chest GUI
+- **👁️ Preview Mode** - View backups in interactive chest GUI
+- **✨ Drag & Drop** - Copy individual items from backups by dragging them
+- **⌨️ Shift+Click** - Quick copy items with shift+click
 - **↻ Restore** - Load backup directly to player
 - **📥 Copy to Self** - Copy backup items to your own inventory
 - **🔍 Smart Filtering** - Search backups by date/time with quick filter buttons
 - **📄 Pagination System** - Navigate through large backup lists (10 per page)
 - **🌐 Localization** - Fully translated interface (English & Russian)
+- **⚡ Async I/O** - Non-blocking disk operations prevent TPS drops
 
 ---
 
@@ -152,6 +157,10 @@ Configuration file: `config/inventory/InventoryBackups.toml`
 
     # Save inventory when player quits server
     quitSaveEnabled = true
+
+    # Save inventory when player closes a container (chest, barrel, etc.)
+    # Warning: Can create many backups if enabled
+    containerCloseSaveEnabled = false
 
     # Days to keep backups before auto-deletion
     retentionDays = 7
@@ -294,15 +303,18 @@ All commands require **Operator Level 2** permission:
 - **I18n Support** - Uses Minecraft's built-in translation system
 
 ### ⚡ Performance
+- **Async I/O** - Non-blocking disk operations prevent TPS drops
 - **Smart deduplication** - Reduces disk I/O
 - **Lazy loading** - Only loads backups when needed
 - **Efficient cleanup** - Hourly background task
-- **Low overhead** - Minimal server impact
+- **Low overhead** - Minimal server impact (2 worker threads max)
 - **Optimized pagination** - Displays only 10 items at a time
+- **Task throttling** - Maximum 50 pending backup tasks
 
 ### 🌍 Localization
 - **English (en_us)** - Default language
 - **Russian (ru_ru)** - Полная русская локализация
+- **Korean (ko_kr)** - 완전한 한국어 번역
 - **Automatic detection** - Uses client's language setting
 - **Easy to extend** - Add new languages via JSON files
 

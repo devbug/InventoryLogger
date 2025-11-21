@@ -23,6 +23,7 @@ public class InventoryConfig {
         public final ModConfigSpec.BooleanValue deadSaveEnabled;
         public final ModConfigSpec.BooleanValue joinSaveEnabled;
         public final ModConfigSpec.BooleanValue quitSaveEnabled;
+        public final ModConfigSpec.BooleanValue containerCloseSaveEnabled;
         public final ModConfigSpec.IntValue retentionDays;
 
         // Ender Chest settings
@@ -55,6 +56,11 @@ public class InventoryConfig {
             this.quitSaveEnabled = COMMON_BUILDER
                     .comment("true - saves inventory when player quits the server")
                     .define("quitSaveEnabled", true);
+
+            this.containerCloseSaveEnabled = COMMON_BUILDER
+                    .comment("true - saves inventory when player closes a container (chest, barrel, etc.)",
+                             "Warning: Can create many backups if enabled")
+                    .define("containerCloseSaveEnabled", false);
 
             this.retentionDays = COMMON_BUILDER
                     .comment("Number of days to keep backup files. Older backups will be automatically deleted. 7 - keep for 7 days.")

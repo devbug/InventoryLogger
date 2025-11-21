@@ -9,12 +9,14 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.common.util.JsonUtils;
 import com.pocky.invbackups.io.JsonFileHandler;
+import com.pocky.invbackups.io.AsyncBackupExecutor;
 import com.pocky.invbackups.utils.CuriosHelper;
 
 import java.io.Serializable;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 
 public class InventoryData implements Serializable {
 
@@ -44,6 +46,25 @@ public class InventoryData implements Serializable {
             new JsonFileHandler<>(this).save(path, fileName);
         } catch (Exception e) {
         }
+    }
+
+    /**
+     * Save asynchronously (non-blocking)
+     */
+    public CompletableFuture<Void> saveAsync(UUID playerUUID, String suffix) {
+        String description = playerUUID.toString() + "/inventory/" + 
+            (suffix != null && !suffix.isEmpty() ? suffix : "auto");
+        
+        return AsyncBackupExecutor.saveAsync(() -> {
+            save(playerUUID, suffix);
+        }, description);
+    }
+
+    /**
+     * Save asynchronously with death flag
+     */
+    public CompletableFuture<Void> saveAsync(UUID playerUUID, boolean isPlayerDead) {
+        return saveAsync(playerUUID, isPlayerDead ? "death" : null);
     }
 
     public Map<Integer, ItemStack> decode(HolderLookup.Provider registryAccess) {

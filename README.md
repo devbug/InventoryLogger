@@ -76,10 +76,13 @@ Quick filters: [📅 Today] [Yesterday] [This Month] [All]
 
 ## 📥 Installation
 
+> **🖥️ Server-Side Only:** This mod is **server-side only** - clients don't need to install it!  
+> Players can connect with vanilla clients and use all features through standard Minecraft GUIs.
+
 1. **Download** the latest release
-2. **Install** [Minecraft NeoForge 1.21.1](https://files.minecraftforge.net/)
-3. **Place** the mod file in your `mods` folder
-4. **Launch** Minecraft with NeoForge profile
+2. **Install** [Minecraft NeoForge 1.21.1](https://files.minecraftforge.net/) on your **server**
+3. **Place** the mod file in your server's `mods` folder
+4. **Start** the server - players can join without installing anything
 
 ---
 

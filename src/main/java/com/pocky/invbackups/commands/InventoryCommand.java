@@ -656,6 +656,33 @@ public class InventoryCommand {
             this.targetPlayer = target;
             this.viewer = viewer;
             
+            // Count Curios items
+            long curiosCount = original.entrySet().stream()
+                .filter(e -> e.getKey() >= 1000)
+                .filter(e -> !e.getValue().isEmpty())
+                .count();
+            
+            // Add Curios view button in slot 48 if Curios exist
+            if (curiosCount > 0) {
+                ItemStack curiosButton = new ItemStack(Items.ENDER_EYE);
+                curiosButton.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME,
+                    Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.curios.button.view"))
+                        .withStyle(net.minecraft.ChatFormatting.LIGHT_PURPLE));
+                
+                List<Component> curiosLore = new ArrayList<>();
+                curiosLore.add(Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.curios.info.total", "16"))
+                    .withStyle(net.minecraft.ChatFormatting.GRAY));
+                curiosLore.add(Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.curios.info.items", String.valueOf(curiosCount)))
+                    .withStyle(net.minecraft.ChatFormatting.YELLOW));
+                curiosLore.add(Component.empty());
+                curiosLore.add(Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.curios.info.drag"))
+                    .withStyle(net.minecraft.ChatFormatting.GREEN));
+                
+                curiosButton.set(net.minecraft.core.component.DataComponents.LORE,
+                    new net.minecraft.world.item.component.ItemLore(curiosLore));
+                container.setItem(48, curiosButton);
+            }
+            
             // Add back button in last slot (53)
             ItemStack backButton = new ItemStack(Items.BARRIER);
             backButton.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME,
@@ -727,6 +754,20 @@ public class InventoryCommand {
         
         @Override
         public void clicked(int slotId, int button, ClickType clickType, Player player) {
+            // Handle Curios view button click (slot 48)
+            if (slotId == 48) {
+                ItemStack item = this.chestContainer.getItem(48);
+                if (item.getItem() == Items.ENDER_EYE) {  // Curios button check
+                    player.closeContainer();
+                    if (player instanceof ServerPlayer sp) {
+                        sp.getServer().execute(() -> {
+                            openCuriosView(sp, targetPlayer, originalItems, viewer);
+                        });
+                    }
+                }
+                return;
+            }
+            
             // Handle back button click (slot 53)
             if (slotId == 53) {
                 player.closeContainer();
@@ -752,6 +793,11 @@ public class InventoryCommand {
             
             // Block placing items in backup container slots (0-53)
             if (slotId >= 0 && slotId < this.containerSize) {
+                // Block placing items on button slots
+                if (slotId == 48 || slotId == 53) {
+                    return;
+                }
+                
                 ItemStack cursor = player.containerMenu.getCarried();
                 if (!cursor.isEmpty()) {
                     // Player is trying to place an item, block it
@@ -1211,9 +1257,265 @@ public class InventoryCommand {
     }
     
     /**
+     * Curios-only view menu - displays all 16 Curios slots with infinite copying
+     */
+    private static class CuriosViewMenu extends ChestMenu {
+        private final java.util.Map<Integer, ItemStack> originalItems;
+        private final PlayerResolver.ResolvedPlayer targetPlayer;
+        private final ServerPlayer viewer;
+        private final Container curiosContainer;
+        
+        public CuriosViewMenu(MenuType<?> menuType, int containerId,
+                              Inventory playerInv,
+                              java.util.Map<Integer, ItemStack> original,
+                              PlayerResolver.ResolvedPlayer target,
+                              ServerPlayer viewer) {
+            super(menuType, containerId, playerInv, new SimpleContainer(54), 6);
+            this.originalItems = original;
+            this.targetPlayer = target;
+            this.viewer = viewer;
+            this.curiosContainer = this.getContainer();
+            
+            populateCuriosSlots();
+            addNavigationButtons();
+        }
+        
+        private void populateCuriosSlots() {
+            // Curios 아이템만 필터링 (인덱스 1000-1015, 16개)
+            originalItems.entrySet().stream()
+                .filter(e -> e.getKey() >= 1000 && e.getKey() < 1016)
+                .forEach(entry -> {
+                    int curiosIndex = entry.getKey() - 1000;  // 0-15로 변환
+                    if (curiosIndex >= 0 && curiosIndex < 18) {  // 슬롯 0-17 범위 (16개 + 여유 2개)
+                        this.curiosContainer.setItem(curiosIndex, entry.getValue().copy());
+                    }
+                });
+        }
+        
+        private void addNavigationButtons() {
+            // 정보 버튼 (슬롯 49)
+            ItemStack infoButton = new ItemStack(Items.BOOK);
+            infoButton.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME,
+                Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.curios.info.title"))
+                    .withStyle(net.minecraft.ChatFormatting.AQUA));
+            
+            long nonEmpty = originalItems.entrySet().stream()
+                .filter(e -> e.getKey() >= 1000 && e.getKey() < 1016)
+                .filter(e -> !e.getValue().isEmpty()).count();
+            
+            List<Component> infoLore = new ArrayList<>();
+            infoLore.add(Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.curios.info.total", "16"))
+                .withStyle(net.minecraft.ChatFormatting.GRAY));
+            infoLore.add(Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.curios.info.items", String.valueOf(nonEmpty)))
+                .withStyle(net.minecraft.ChatFormatting.YELLOW));
+            infoLore.add(Component.empty());
+            infoLore.add(Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.curios.info.drag"))
+                .withStyle(net.minecraft.ChatFormatting.GREEN));
+            
+            infoButton.set(net.minecraft.core.component.DataComponents.LORE,
+                new net.minecraft.world.item.component.ItemLore(infoLore));
+            this.curiosContainer.setItem(49, infoButton);
+            
+            // 뒤로 버튼 (슬롯 53)
+            ItemStack backButton = new ItemStack(Items.BARRIER);
+            backButton.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME,
+                Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.curios.button.back"))
+                    .withStyle(net.minecraft.ChatFormatting.RED));
+            List<Component> backLore = new ArrayList<>();
+            backLore.add(Component.literal("Click to return to main preview")
+                .withStyle(net.minecraft.ChatFormatting.GRAY));
+            backButton.set(net.minecraft.core.component.DataComponents.LORE,
+                new net.minecraft.world.item.component.ItemLore(backLore));
+            this.curiosContainer.setItem(53, backButton);
+        }
+        
+        @Override
+        protected Slot addSlot(Slot slot) {
+            if (slot.container == this.curiosContainer) {
+                int index = slot.getSlotIndex();
+                
+                // Curios 슬롯 (0-17)은 복사 가능
+                if (index >= 0 && index < 18) {
+                    return super.addSlot(new CuriosBackupSlot(
+                        slot.container, index, slot.x, slot.y, originalItems));
+                }
+                
+                // 버튼 슬롯 (49, 53)은 상호작용 불가
+                if (index == 49 || index == 53) {
+                    return super.addSlot(new Slot(slot.container, index, slot.x, slot.y) {
+                        @Override
+                        public boolean mayPlace(ItemStack stack) { return false; }
+                        @Override
+                        public boolean mayPickup(Player player) { return false; }
+                    });
+                }
+            }
+            
+            return super.addSlot(slot);
+        }
+        
+        @Override
+        public void clicked(int slotId, int button, ClickType clickType, Player player) {
+            // 뒤로 버튼 (슬롯 53)
+            if (slotId == 53) {
+                player.closeContainer();
+                if (player instanceof ServerPlayer sp) {
+                    sp.getServer().execute(() -> {
+                        reopenMainPreview(sp, targetPlayer, originalItems, viewer);
+                    });
+                }
+                return;
+            }
+            
+            // 정보 버튼 (슬롯 49) - 클릭 무시
+            if (slotId == 49) {
+                return;
+            }
+            
+            // 버튼 슬롯은 아이템 배치 불가
+            if (slotId >= 0 && slotId < 54 && (slotId == 49 || slotId == 53)) {
+                return;
+            }
+            
+            super.clicked(slotId, button, clickType, player);
+        }
+        
+        @Override
+        public ItemStack quickMoveStack(Player player, int index) {
+            // Shift+클릭 처리 (Curios 슬롯 0-17)
+            if (index < 18) {
+                Slot slot = this.slots.get(index);
+                if (!slot.hasItem()) return ItemStack.EMPTY;
+                
+                ItemStack slotStack = slot.getItem();
+                ItemStack copy = slotStack.copy();
+                
+                // 플레이어 인벤토리로 복사
+                if (!this.moveItemStackTo(copy, 54, this.slots.size(), true)) {
+                    return ItemStack.EMPTY;
+                }
+                
+                // 원본 복원 (무한 복사)
+                int curiosIndex = 1000 + index;
+                ItemStack original = originalItems.get(curiosIndex);
+                if (original != null) {
+                    slot.set(original.copy());
+                }
+                
+                // 성공 메시지
+                if (player instanceof ServerPlayer sp) {
+                    ChatUI.showSuccess(sp, Component.translatable(
+                        "invbackups.success.item_copied",
+                        Component.literal(copy.getHoverName().getString())
+                            .withStyle(net.minecraft.ChatFormatting.WHITE)).getString());
+                }
+                
+                return copy;
+            }
+            
+            return ItemStack.EMPTY;
+        }
+        
+        @Override
+        public boolean stillValid(Player player) {
+            return true;
+        }
+        
+        /**
+         * Curios 백업 슬롯 - 무한 복사 가능
+         */
+        private static class CuriosBackupSlot extends Slot {
+            private final java.util.Map<Integer, ItemStack> originalItems;
+            
+            public CuriosBackupSlot(Container container, int index,
+                                    int x, int y, java.util.Map<Integer, ItemStack> original) {
+                super(container, index, x, y);
+                this.originalItems = original;
+            }
+            
+            @Override
+            public boolean mayPlace(ItemStack stack) {
+                return false;  // 아이템 배치 불가
+            }
+            
+            @Override
+            public boolean mayPickup(Player player) {
+                return true;  // 아이템 픽업 가능
+            }
+            
+            @Override
+            public void onTake(Player player, ItemStack stack) {
+                ItemStack copy = stack.copy();
+                
+                // 원본 복원 (무한 복사)
+                int curiosIndex = 1000 + this.getSlotIndex();
+                ItemStack original = originalItems.get(curiosIndex);
+                if (original != null && !original.isEmpty()) {
+                    this.container.setItem(this.getSlotIndex(), original.copy());
+                }
+                
+                // 성공 메시지
+                if (player instanceof ServerPlayer sp) {
+                    ChatUI.showSuccess(sp,
+                        Component.translatable("invbackups.success.item_copied",
+                            Component.literal(copy.getHoverName().getString())
+                                .withStyle(net.minecraft.ChatFormatting.WHITE)).getString());
+                }
+                
+                super.onTake(player, stack);
+            }
+        }
+    }
+    
+    /**
+     * Open Curios-only view menu
+     */
+    private static void openCuriosView(ServerPlayer viewer,
+                                       PlayerResolver.ResolvedPlayer target,
+                                       java.util.Map<Integer, ItemStack> originalItems,
+                                       ServerPlayer originalViewer) {
+        MenuProvider curiosProvider = new SimpleMenuProvider(
+            (id, playerInv, playerEntity) -> new CuriosViewMenu(
+                MenuType.GENERIC_9x6, id, playerInv, originalItems, target, viewer),
+            Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.curios.view.title", target.getName()))
+                .withStyle(net.minecraft.ChatFormatting.LIGHT_PURPLE)
+        );
+        
+        viewer.openMenu(curiosProvider);
+    }
+    
+    /**
+     * Reopen main preview from Curios view
+     */
+    private static void reopenMainPreview(ServerPlayer viewer,
+                                          PlayerResolver.ResolvedPlayer target,
+                                          java.util.Map<Integer, ItemStack> originalItems,
+                                          ServerPlayer originalViewer) {
+        Container chestContainer = new SimpleContainer(54);
+        
+        originalItems.forEach((inventoryIndex, itemStack) -> {
+            int chestSlot = mapInventoryToChestSlot(inventoryIndex);
+            if (chestSlot >= 0 && chestSlot < 53) {
+                chestContainer.setItem(chestSlot, itemStack.copy());
+            }
+        });
+        
+        MenuProvider mainProvider = new SimpleMenuProvider(
+            (id, playerInv, playerEntity) -> new ChestCopyableMenu(
+                MenuType.GENERIC_9x6, id, playerInv, chestContainer, 6,
+                originalItems, target, viewer),
+            Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.preview.title", target.getName(), ""))
+                .withStyle(net.minecraft.ChatFormatting.GOLD)
+        );
+        
+        viewer.openMenu(mainProvider);
+    }
+    
+    /**
      * Maps inventory slot indices to chest GUI slot indices
      * Inventory layout: 0-35 (inventory), 100-103 (armor), -106 (offhand), 1000+ (curios)
-     * Chest GUI layout: 0-35 (inventory rows 1-4), 36-39 (armor row 5), 40 (offhand row 5), 45-52 (curios row 6), 53 (back button row 6)
+     * Chest GUI layout: 0-35 (inventory rows 1-4), 36-39 (armor row 5), 40 (offhand row 5)
+     * Note: Curios are NOT displayed in main preview - use the Curios view button instead
      */
     private static int mapInventoryToChestSlot(int inventoryIndex) {
         if (inventoryIndex >= 0 && inventoryIndex <= 35) {
@@ -1226,9 +1528,9 @@ public class InventoryCommand {
             // Offhand: -106 -> 40 (row 5, after armor)
             return 40;
         } else if (inventoryIndex >= 1000) {
-            // Curios slots: 1000+ -> 45-52 (row 6, max 8 curios)
-            int curiosSlot = 45 + (inventoryIndex - 1000);
-            return curiosSlot <= 52 ? curiosSlot : -1;  // Max slot 52
+            // Curios slots: NOT displayed in main preview
+            // Use the Curios view button (slot 48) to access Curios in dedicated screen
+            return -1;
         }
         return -1;  // Unknown slot, skip
     }

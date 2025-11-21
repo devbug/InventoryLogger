@@ -110,5 +110,13 @@
   "invbackups.enderchest.help.set": "/enderchest set <игрок> <копия>",
   "invbackups.enderchest.help.set.desc": "Восстановить копию эндер-сундука игроку (только онлайн)",
   "invbackups.enderchest.help.copy": "/enderchest copy <игрок> <копия>",
-  "invbackups.enderchest.help.copy.desc": "Скопировать предметы из копии эндер-сундука в ваш инвентарь"
+  "invbackups.enderchest.help.copy.desc": "Скопировать предметы из копии эндер-сундука в ваш инвентарь",
+
+  "invbackups.curios.view.title": "📿 Curios: %s",
+  "invbackups.curios.button.view": "📿 Просмотр слотов Curios",
+  "invbackups.curios.button.back": "◄ Назад к основному инвентарю",
+  "invbackups.curios.info.title": "ℹ️ Информация о Curios",
+  "invbackups.curios.info.total": "Всего слотов Curios: %s",
+  "invbackups.curios.info.items": "Найдено предметов: %s",
+  "invbackups.curios.info.drag": "Перетащите предметы, чтобы скопировать их"
 }

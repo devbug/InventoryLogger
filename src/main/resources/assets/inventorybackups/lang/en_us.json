@@ -53,6 +53,16 @@
 
   "invbackups.success.item_copied": "Copied %s from backup",
 
+  "invbackups.gui.browser.title": "Backups: %s",
+  "invbackups.gui.browser.opened": "Opened backup browser for %s",
+  "invbackups.gui.backup.item.title": "Backup",
+  "invbackups.gui.backup.click": "Click to preview this backup",
+  "invbackups.gui.type.container": "[Container Close]",
+  "invbackups.gui.page.previous": "Previous Page",
+  "invbackups.gui.page.next": "Next Page",
+  "invbackups.gui.page.info": "Page %s/%s",
+  "invbackups.gui.page.showing": "Showing %s-%s of %s backups",
+
   "invbackups.preview.title": "Preview: %s - %s",
   "invbackups.player.title": "Player Inventory: %s",
 

@@ -91,15 +91,19 @@ Quick filters: [📅 Today] [Yesterday] [This Month] [All]
 
 | Command | Description |
 |---------|-------------|
-| `/inventory` | Shows help with all available commands |
-| `/inventory list <player> [filter] [page]` | Lists backups with pagination and quick filters |
-| `/inventory view <player> <backup>` | Opens read-only preview of backup |
-| `/inventory set <player> <backup>` | Restores backup to player |
-| `/inventory copy <player> <backup>` | Copies backup items to your inventory |
+| `/inventory` | Show help for all available commands |
+| `/inventory gui <player>` | **Open GUI backup browser** - Select backups visually |
+| `/inventory list <player> [filter] [page]` | List backups with pagination and quick filters |
+| `/inventory view <player> <backup>` | Open read-only preview of a backup |
+| `/inventory set <player> <backup>` | Restore backup to player |
+| `/inventory copy <player> <backup>` | Copy backup items to your own inventory |
 
 ### 📖 Examples
 
 ```bash
+# Open GUI backup browser (recommended)
+/inventory gui Steve
+
 # List all backups for player "Steve" (first page)
 /inventory list Steve
 
@@ -109,10 +113,10 @@ Quick filters: [📅 Today] [Yesterday] [This Month] [All]
 # Filter backups from March 2023
 /inventory list Steve 2023-03
 
-# Filter backups from specific day
+# Filter backups from a specific date
 /inventory list Steve 2025-01-15
 
-# Filter backups from specific day, page 2
+# Filter backups from a specific date, page 2
 /inventory list Steve 2025-01-15 2
 
 # View a specific backup

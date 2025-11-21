@@ -53,6 +53,16 @@
 
   "invbackups.success.item_copied": "Скопировано %s из резервной копии",
 
+  "invbackups.gui.browser.title": "Резервные копии: %s",
+  "invbackups.gui.browser.opened": "Открыт браузер резервных копий для %s",
+  "invbackups.gui.backup.item.title": "Резервная копия",
+  "invbackups.gui.backup.click": "Нажмите для предпросмотра этой копии",
+  "invbackups.gui.type.container": "[Закрытие контейнера]",
+  "invbackups.gui.page.previous": "Предыдущая страница",
+  "invbackups.gui.page.next": "Следующая страница",
+  "invbackups.gui.page.info": "Страница %s/%s",
+  "invbackups.gui.page.showing": "Показано %s-%s из %s копий",
+
   "invbackups.preview.title": "Просмотр: %s - %s",
   "invbackups.player.title": "Инвентарь игрока: %s",
 

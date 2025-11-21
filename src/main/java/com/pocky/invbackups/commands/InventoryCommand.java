@@ -25,9 +25,16 @@ import net.minecraft.world.inventory.ChestMenu;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 
+import java.io.File;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.Optional;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.Comparator;
 
 public class InventoryCommand {
 
@@ -96,6 +103,12 @@ public class InventoryCommand {
                                                         IntegerArgumentType.getInteger(context, "page")))))
                         )
                 )
+
+                // /inventory gui <player> - Open GUI backup browser
+                .then(Commands.literal("gui")
+                        .then(Commands.argument("target", StringArgumentType.string())
+                                .executes(context -> command.openBackupBrowser(context.getSource(),
+                                        StringArgumentType.getString(context, "target")))))
         );
 
         // Ender Chest commands
@@ -784,6 +797,339 @@ public class InventoryCommand {
                     return false;
                 }
             });
+        }
+    }
+
+    /**
+     * Open GUI backup browser
+     */
+    public int openBackupBrowser(CommandSourceStack source, String targetName) throws CommandSyntaxException {
+        ServerPlayer executor = source.getPlayerOrException();
+
+        // Resolve player (online or offline)
+        Optional<PlayerResolver.ResolvedPlayer> resolvedOpt = PlayerResolver.resolvePlayer(
+                source.getServer(), targetName);
+
+        if (resolvedOpt.isEmpty()) {
+            ChatUI.showError(executor, Component.translatable("invbackups.error.player_not_found", targetName).getString());
+            return 0;
+        }
+
+        PlayerResolver.ResolvedPlayer resolved = resolvedOpt.get();
+        
+        // Get backup directory
+        Path backupDir = Paths.get("InventoryLog/inventory/" + resolved.getUuid() + "/");
+        File dir = backupDir.toFile();
+        
+        if (!dir.exists() || !dir.isDirectory()) {
+            ChatUI.showError(executor, Component.translatable("invbackups.error.no_backups").getString());
+            return 0;
+        }
+
+        // Get all backup files
+        File[] files = dir.listFiles((d, name) -> name.endsWith(".json"));
+        if (files == null || files.length == 0) {
+            ChatUI.showError(executor, Component.translatable("invbackups.error.no_backups").getString());
+            return 0;
+        }
+
+        // Sort by modification time (newest first)
+        List<File> backupFiles = new ArrayList<>(List.of(files));
+        backupFiles.sort(Comparator.comparingLong(File::lastModified).reversed());
+
+        // Open backup browser GUI at page 0
+        openBrowserAtPage(executor, resolved, backupFiles, 0);
+
+        return 1;
+    }
+
+    /**
+     * Open backup browser at specific page
+     */
+    private static void openBrowserAtPage(ServerPlayer viewer, 
+                                          PlayerResolver.ResolvedPlayer target,
+                                          List<File> backupFiles, int page) {
+        MenuProvider browserProvider = new SimpleMenuProvider(
+                (id, playerInv, playerEntity) -> new BackupBrowserMenu(
+                        MenuType.GENERIC_9x6, id, playerInv, backupFiles, target, viewer, page),
+                Component.translatable("invbackups.gui.browser.title", target.getName())
+                        .withStyle(style -> style.withColor(net.minecraft.ChatFormatting.GOLD))
+        );
+
+        viewer.openMenu(browserProvider);
+        ChatUI.showInfo(viewer, Component.translatable("invbackups.gui.browser.opened",
+                Component.literal(target.getName()).withStyle(net.minecraft.ChatFormatting.WHITE)).getString());
+    }
+
+    /**
+     * Backup browser menu - displays backups as items in chest GUI with pagination
+     */
+    private static class BackupBrowserMenu extends ChestMenu {
+        private static final int ITEMS_PER_PAGE = 45; // 5 rows for backups, 1 row for controls
+        private final List<File> backupFiles;
+        private final PlayerResolver.ResolvedPlayer targetPlayer;
+        private final ServerPlayer viewer;
+        private final Container browserContainer;
+        private int currentPage;
+
+        public BackupBrowserMenu(MenuType<?> menuType, int containerId,
+                                 Inventory playerInv, List<File> backups,
+                                 PlayerResolver.ResolvedPlayer target, ServerPlayer viewer, int page) {
+            super(menuType, containerId, playerInv, new SimpleContainer(54), 6);
+            this.backupFiles = backups;
+            this.targetPlayer = target;
+            this.viewer = viewer;
+            this.browserContainer = this.getContainer();
+            this.currentPage = Math.max(0, Math.min(page, getTotalPages() - 1));
+            
+            populateBackupItems();
+        }
+
+        private int getTotalPages() {
+            return (int) Math.ceil((double) backupFiles.size() / ITEMS_PER_PAGE);
+        }
+
+        private void populateBackupItems() {
+            Container container = this.getContainer();
+            
+            // Clear container
+            for (int i = 0; i < 54; i++) {
+                container.setItem(i, ItemStack.EMPTY);
+            }
+            
+            // Calculate pagination
+            int startIndex = currentPage * ITEMS_PER_PAGE;
+            int endIndex = Math.min(startIndex + ITEMS_PER_PAGE, backupFiles.size());
+            int totalPages = getTotalPages();
+            
+            // Display backups for current page (slots 0-44)
+            for (int i = startIndex; i < endIndex; i++) {
+                File file = backupFiles.get(i);
+                String fileName = file.getName().replace(".json", "");
+                
+                // Determine backup type and icon
+                ItemStack icon;
+                String typeKey;
+                
+                if (fileName.contains("-death")) {
+                    icon = new ItemStack(Items.SKELETON_SKULL);
+                    typeKey = "invbackups.type.death";
+                } else if (fileName.contains("-join")) {
+                    icon = new ItemStack(Items.OAK_DOOR);
+                    typeKey = "invbackups.type.join";
+                } else if (fileName.contains("-quit")) {
+                    icon = new ItemStack(Items.IRON_DOOR);
+                    typeKey = "invbackups.type.quit";
+                } else if (fileName.contains("-container-close")) {
+                    icon = new ItemStack(Items.CHEST);
+                    typeKey = "invbackups.gui.type.container";
+                } else {
+                    icon = new ItemStack(Items.CLOCK);
+                    typeKey = "invbackups.type.auto";
+                }
+                
+                // Set item name with backup date/time
+                icon.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME, 
+                    Component.translatable("invbackups.gui.backup.item.title")
+                        .append(" ")
+                        .append(Component.literal(fileName)
+                            .withStyle(net.minecraft.ChatFormatting.YELLOW)));
+                
+                // Add lore with backup info
+                List<Component> lore = new ArrayList<>();
+                lore.add(Component.translatable(typeKey)
+                    .withStyle(net.minecraft.ChatFormatting.GRAY));
+                lore.add(Component.empty());
+                lore.add(Component.translatable("invbackups.gui.backup.click")
+                    .withStyle(net.minecraft.ChatFormatting.GREEN));
+                
+                icon.set(net.minecraft.core.component.DataComponents.LORE,
+                    new net.minecraft.world.item.component.ItemLore(lore));
+                
+                int slotIndex = i - startIndex;
+                container.setItem(slotIndex, icon);
+            }
+            
+            // Add pagination controls (last row: slots 45-53)
+            // Previous page button (slot 45)
+            if (currentPage > 0) {
+                ItemStack prevButton = new ItemStack(Items.ARROW);
+                prevButton.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME,
+                    Component.translatable("invbackups.gui.page.previous")
+                        .withStyle(net.minecraft.ChatFormatting.GREEN));
+                container.setItem(45, prevButton);
+            }
+            
+            // Page info (slot 49 - center)
+            ItemStack pageInfo = new ItemStack(Items.PAPER);
+            pageInfo.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME,
+                Component.translatable("invbackups.gui.page.info", 
+                    currentPage + 1, totalPages)
+                    .withStyle(net.minecraft.ChatFormatting.YELLOW));
+            
+            List<Component> pageInfoLore = new ArrayList<>();
+            pageInfoLore.add(Component.translatable("invbackups.gui.page.showing",
+                    startIndex + 1, endIndex, backupFiles.size())
+                .withStyle(net.minecraft.ChatFormatting.GRAY));
+            pageInfo.set(net.minecraft.core.component.DataComponents.LORE,
+                new net.minecraft.world.item.component.ItemLore(pageInfoLore));
+            container.setItem(49, pageInfo);
+            
+            // Next page button (slot 53)
+            if (currentPage < totalPages - 1) {
+                ItemStack nextButton = new ItemStack(Items.ARROW);
+                nextButton.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME,
+                    Component.translatable("invbackups.gui.page.next")
+                        .withStyle(net.minecraft.ChatFormatting.GREEN));
+                container.setItem(53, nextButton);
+            }
+        }
+
+        @Override
+        public ItemStack quickMoveStack(Player player, int index) {
+            // Navigation buttons
+            if (index == 45 && currentPage > 0) {
+                // Previous page
+                changePage(currentPage - 1);
+                return ItemStack.EMPTY;
+            } else if (index == 53 && currentPage < getTotalPages() - 1) {
+                // Next page
+                changePage(currentPage + 1);
+                return ItemStack.EMPTY;
+            }
+            
+            // Backup selection (slots 0-44)
+            if (index < 45) {
+                int backupIndex = (currentPage * ITEMS_PER_PAGE) + index;
+                if (backupIndex < backupFiles.size()) {
+                    File selectedBackup = backupFiles.get(backupIndex);
+                    String backupName = selectedBackup.getName().replace(".json", "");
+                    
+                    // Close this menu
+                    player.closeContainer();
+                    
+                    // Open backup preview
+                    openBackupPreview(viewer, targetPlayer, backupName);
+                }
+            }
+            
+            return ItemStack.EMPTY;
+        }
+
+        private void changePage(int newPage) {
+            // Close and reopen at new page
+            viewer.closeContainer();
+            viewer.getServer().execute(() -> {
+                openBrowserAtPage(viewer, targetPlayer, backupFiles, newPage);
+            });
+        }
+
+        @Override
+        protected Slot addSlot(Slot slot) {
+            // Make backup slots clickable but not removable
+            if (slot.container == this.browserContainer) {
+                return super.addSlot(new Slot(slot.container, slot.getSlotIndex(), slot.x, slot.y) {
+                    @Override
+                    public boolean mayPlace(ItemStack stack) {
+                        return false;
+                    }
+
+                    @Override
+                    public boolean mayPickup(Player player) {
+                        return false;
+                    }
+                    
+                    @Override
+                    public void onTake(Player player, ItemStack stack) {
+                        int slotIndex = this.getSlotIndex();
+                        
+                        // Navigation buttons
+                        if (slotIndex == 45 && currentPage > 0) {
+                            // Previous page
+                            player.closeContainer();
+                            if (player instanceof ServerPlayer sp) {
+                                sp.getServer().execute(() -> {
+                                    openBrowserAtPage(sp, targetPlayer, backupFiles, currentPage - 1);
+                                });
+                            }
+                            return;
+                        } else if (slotIndex == 53 && currentPage < getTotalPages() - 1) {
+                            // Next page
+                            player.closeContainer();
+                            if (player instanceof ServerPlayer sp) {
+                                sp.getServer().execute(() -> {
+                                    openBrowserAtPage(sp, targetPlayer, backupFiles, currentPage + 1);
+                                });
+                            }
+                            return;
+                        }
+                        
+                        // Backup selection (slots 0-44)
+                        if (slotIndex < 45) {
+                            int backupIndex = (currentPage * ITEMS_PER_PAGE) + slotIndex;
+                            if (backupIndex < backupFiles.size()) {
+                                File selectedBackup = backupFiles.get(backupIndex);
+                                String backupName = selectedBackup.getName().replace(".json", "");
+                                
+                                // Close current menu
+                                player.closeContainer();
+                                
+                                // Open preview in next tick
+                                if (player instanceof ServerPlayer sp) {
+                                    sp.getServer().execute(() -> {
+                                        openBackupPreview(sp, targetPlayer, backupName);
+                                    });
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+            return super.addSlot(slot);
+        }
+
+        @Override
+        public boolean stillValid(Player player) {
+            return true;
+        }
+        
+        private static void openBackupPreview(ServerPlayer viewer, 
+                                              PlayerResolver.ResolvedPlayer target, 
+                                              String backupName) {
+            try {
+                InventoryData invData = JsonFileHandler.load(
+                    "inventory/" + target.getUuid() + "/", backupName, InventoryData.class);
+
+                if (invData == null) {
+                    ChatUI.showError(viewer, 
+                        Component.translatable("invbackups.error.backup_not_found", backupName).getString());
+                    return;
+                }
+
+                // Store original items for infinite copying
+                java.util.Map<Integer, ItemStack> originalItems = invData.decode(viewer.level().registryAccess());
+                
+                Container chestContainer = new SimpleContainer(54);
+                AtomicInteger slotId = new AtomicInteger();
+                originalItems.forEach((i, e) -> {
+                    chestContainer.setItem(slotId.get(), e.copy());
+                    slotId.getAndIncrement();
+                });
+
+                MenuProvider chestMenuProvider = new SimpleMenuProvider(
+                        (id, playerInv, playerEntity) -> new ChestCopyableMenu(
+                                MenuType.GENERIC_9x6, id, playerInv, chestContainer, 6, originalItems),
+                        Component.translatable("invbackups.preview.title", target.getName(), backupName)
+                                .withStyle(style -> style.withColor(net.minecraft.ChatFormatting.GOLD))
+                );
+
+                viewer.openMenu(chestMenuProvider);
+                ChatUI.showInfo(viewer, Component.translatable("invbackups.info.viewing_copyable",
+                        Component.literal(backupName).withStyle(net.minecraft.ChatFormatting.WHITE)).getString());
+            } catch (Exception e) {
+                ChatUI.showError(viewer, 
+                    Component.translatable("invbackups.error.backup_not_found", backupName).getString());
+            }
         }
     }
 }

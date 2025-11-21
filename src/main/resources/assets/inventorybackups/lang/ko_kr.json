@@ -53,6 +53,16 @@
 
   "invbackups.success.item_copied": "백업에서 %s을(를) 복사했습니다",
 
+  "invbackups.gui.browser.title": "백업: %s",
+  "invbackups.gui.browser.opened": "%s의 백업 브라우저를 열었습니다",
+  "invbackups.gui.backup.item.title": "백업",
+  "invbackups.gui.backup.click": "클릭하여 이 백업 미리보기",
+  "invbackups.gui.type.container": "[컨테이너 닫기]",
+  "invbackups.gui.page.previous": "이전 페이지",
+  "invbackups.gui.page.next": "다음 페이지",
+  "invbackups.gui.page.info": "페이지 %s/%s",
+  "invbackups.gui.page.showing": "%s-%s / 총 %s개 백업",
+
   "invbackups.preview.title": "미리보기: %s - %s",
   "invbackups.player.title": "플레이어 인벤토리: %s",
 

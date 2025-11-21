@@ -113,10 +113,14 @@
   "invbackups.enderchest.help.copy.desc": "Copy ender chest backup items to your inventory",
 
   "invbackups.curios.view.title": "📿 Curios: %s",
+  "invbackups.curios.edit.title": "📿 Edit Curios: %s",
   "invbackups.curios.button.view": "📿 View Curios Slots",
+  "invbackups.curios.button.edit": "📿 Edit Curios Slots",
   "invbackups.curios.button.back": "◄ Back to Main Inventory",
   "invbackups.curios.info.title": "ℹ️ Curios Information",
   "invbackups.curios.info.total": "Total Curios Slots: %s",
   "invbackups.curios.info.items": "Items Found: %s",
-  "invbackups.curios.info.drag": "Drag items to copy them"
+  "invbackups.curios.info.drag": "Drag items to copy them",
+  "invbackups.curios.info.edit": "You can edit items",
+  "invbackups.success.curios_updated": "Curios updated for %s"
 }

@@ -36,6 +36,8 @@ import java.util.Optional;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Map;
+import com.pocky.invbackups.utils.CuriosHelper;
 
 public class InventoryCommand {
 
@@ -355,7 +357,7 @@ public class InventoryCommand {
 
         MenuProvider chestMenuProvider = new SimpleMenuProvider(
                 (id, playerInv, playerEntity) -> new ChestEditableMenu(
-                        MenuType.GENERIC_9x6, id, playerInv, playerInventory, 6, target),
+                        MenuType.GENERIC_9x6, id, playerInv, playerInventory, 6, target, executor),
                 Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(executor, "invbackups.player.title", target.getScoreboardName()))
                         .withStyle(style -> style.withColor(net.minecraft.ChatFormatting.AQUA))
         );
@@ -592,11 +594,64 @@ public class InventoryCommand {
      */
     private static class ChestEditableMenu extends ChestMenu {
         private final ServerPlayer targetPlayer;
+        private final Container chestContainer;
+        private final ServerPlayer viewer;
 
         public ChestEditableMenu(MenuType<?> menuType, int containerId, Inventory playerInv,
-                                Container container, int rows, ServerPlayer targetPlayer) {
+                                Container container, int rows, ServerPlayer targetPlayer, ServerPlayer viewer) {
             super(menuType, containerId, playerInv, container, rows);
             this.targetPlayer = targetPlayer;
+            this.chestContainer = container;
+            this.viewer = viewer;
+            
+            // Count Curios items
+            Map<Integer, ItemStack> curiosItems = CuriosHelper.collectCuriosItems(targetPlayer);
+            long curiosCount = curiosItems.values().stream()
+                .filter(stack -> !stack.isEmpty())
+                .count();
+            
+            // Add Curios view button in slot 48 if Curios exist
+            if (curiosCount > 0) {
+                ItemStack curiosButton = new ItemStack(Items.ENDER_EYE);
+                curiosButton.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME,
+                    Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.curios.button.edit"))
+                        .withStyle(net.minecraft.ChatFormatting.LIGHT_PURPLE));
+                
+                List<Component> curiosLore = new ArrayList<>();
+                curiosLore.add(Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.curios.info.items", String.valueOf(curiosCount)))
+                    .withStyle(net.minecraft.ChatFormatting.YELLOW));
+                curiosLore.add(Component.empty());
+                curiosLore.add(Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.curios.info.edit"))
+                    .withStyle(net.minecraft.ChatFormatting.GREEN));
+                
+                curiosButton.set(net.minecraft.core.component.DataComponents.LORE,
+                    new net.minecraft.world.item.component.ItemLore(curiosLore));
+                container.setItem(48, curiosButton);
+            }
+        }
+
+        @Override
+        public void clicked(int slotId, int button, ClickType clickType, Player player) {
+            // Handle Curios edit button click (slot 48)
+            if (slotId == 48) {
+                ItemStack item = this.chestContainer.getItem(48);
+                if (item.getItem() == Items.ENDER_EYE) {  // Curios button check
+                    player.closeContainer();
+                    if (player instanceof ServerPlayer sp) {
+                        sp.getServer().execute(() -> {
+                            openCuriosEdit(sp, targetPlayer, viewer);
+                        });
+                    }
+                }
+                return;
+            }
+            
+            // Block placing items on button slot
+            if (slotId == 48) {
+                return;
+            }
+            
+            super.clicked(slotId, button, clickType, player);
         }
 
         @Override
@@ -1468,7 +1523,124 @@ public class InventoryCommand {
     }
     
     /**
-     * Open Curios-only view menu
+     * Curios-only editable menu - displays and allows editing all 16 Curios slots
+     */
+    private static class CuriosEditableMenu extends ChestMenu {
+        private final ServerPlayer targetPlayer;
+        private final ServerPlayer viewer;
+        private final Container curiosContainer;
+        
+        public CuriosEditableMenu(MenuType<?> menuType, int containerId,
+                                  Inventory playerInv,
+                                  ServerPlayer target,
+                                  ServerPlayer viewer) {
+            super(menuType, containerId, playerInv, new SimpleContainer(54), 6);
+            this.targetPlayer = target;
+            this.viewer = viewer;
+            this.curiosContainer = this.getContainer();
+            
+            populateCuriosSlots();
+            addNavigationButtons();
+        }
+        
+        private void populateCuriosSlots() {
+            // Load current Curios items from target player
+            Map<Integer, ItemStack> curiosItems = CuriosHelper.collectCuriosItems(targetPlayer);
+            
+            curiosItems.entrySet().stream()
+                .filter(e -> e.getKey() >= 1000 && e.getKey() < 1016)
+                .forEach(entry -> {
+                    int curiosIndex = entry.getKey() - 1000;  // Convert to 0-15
+                    if (curiosIndex >= 0 && curiosIndex < 18) {
+                        this.curiosContainer.setItem(curiosIndex, entry.getValue().copy());
+                    }
+                });
+        }
+        
+        private void addNavigationButtons() {
+            // Info button (slot 49)
+            ItemStack infoButton = new ItemStack(Items.BOOK);
+            infoButton.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME,
+                Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.curios.info.title"))
+                    .withStyle(net.minecraft.ChatFormatting.AQUA));
+            
+            List<Component> infoLore = new ArrayList<>();
+            infoLore.add(Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.curios.info.total", "16"))
+                .withStyle(net.minecraft.ChatFormatting.GRAY));
+            infoLore.add(Component.empty());
+            infoLore.add(Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.curios.info.edit"))
+                .withStyle(net.minecraft.ChatFormatting.GREEN));
+            
+            infoButton.set(net.minecraft.core.component.DataComponents.LORE,
+                new net.minecraft.world.item.component.ItemLore(infoLore));
+            this.curiosContainer.setItem(49, infoButton);
+            
+            // Back button (slot 53)
+            ItemStack backButton = new ItemStack(Items.BARRIER);
+            backButton.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME,
+                Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.curios.button.back"))
+                    .withStyle(net.minecraft.ChatFormatting.RED));
+            List<Component> backLore = new ArrayList<>();
+            backLore.add(Component.literal("Click to return to main inventory")
+                .withStyle(net.minecraft.ChatFormatting.GRAY));
+            backButton.set(net.minecraft.core.component.DataComponents.LORE,
+                new net.minecraft.world.item.component.ItemLore(backLore));
+            this.curiosContainer.setItem(53, backButton);
+        }
+        
+        @Override
+        public void clicked(int slotId, int button, ClickType clickType, Player player) {
+            // Back button (slot 53)
+            if (slotId == 53) {
+                player.closeContainer();
+                if (player instanceof ServerPlayer sp) {
+                    sp.getServer().execute(() -> {
+                        reopenPlayerInventory(sp, targetPlayer, viewer);
+                    });
+                }
+                return;
+            }
+            
+            // Info button (slot 49) - ignore clicks
+            if (slotId == 49) {
+                return;
+            }
+            
+            super.clicked(slotId, button, clickType, player);
+        }
+        
+        @Override
+        public void removed(Player player) {
+            super.removed(player);
+            
+            // Sync changes back to target player's Curios
+            if (targetPlayer != null && !targetPlayer.isRemoved()) {
+                Map<Integer, ItemStack> curiosItems = new java.util.HashMap<>();
+                
+                // Collect items from GUI slots 0-17
+                for (int i = 0; i < 18; i++) {
+                    ItemStack item = this.curiosContainer.getItem(i);
+                    curiosItems.put(1000 + i, item.copy());
+                }
+                
+                // Restore to target player
+                CuriosHelper.restoreCuriosItems(targetPlayer, curiosItems);
+                
+                ChatUI.showSuccess((ServerPlayer) player, 
+                    Component.translatable("invbackups.success.curios_updated",
+                        Component.literal(targetPlayer.getScoreboardName())
+                            .withStyle(net.minecraft.ChatFormatting.WHITE)).getString());
+            }
+        }
+        
+        @Override
+        public boolean stillValid(Player player) {
+            return targetPlayer != null && !targetPlayer.isRemoved();
+        }
+    }
+    
+    /**
+     * Open Curios-only view menu (for backups - read-only with copy)
      */
     private static void openCuriosView(ServerPlayer viewer,
                                        PlayerResolver.ResolvedPlayer target,
@@ -1506,6 +1678,56 @@ public class InventoryCommand {
                 originalItems, target, viewer),
             Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.preview.title", target.getName(), ""))
                 .withStyle(net.minecraft.ChatFormatting.GOLD)
+        );
+        
+        viewer.openMenu(mainProvider);
+    }
+    
+    /**
+     * Open Curios editable menu (for live player inventory)
+     */
+    private static void openCuriosEdit(ServerPlayer viewer,
+                                       ServerPlayer target,
+                                       ServerPlayer originalViewer) {
+        MenuProvider curiosProvider = new SimpleMenuProvider(
+            (id, playerInv, playerEntity) -> new CuriosEditableMenu(
+                MenuType.GENERIC_9x6, id, playerInv, target, viewer),
+            Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.curios.edit.title", target.getScoreboardName()))
+                .withStyle(net.minecraft.ChatFormatting.LIGHT_PURPLE)
+        );
+        
+        viewer.openMenu(curiosProvider);
+    }
+    
+    /**
+     * Reopen player inventory from Curios edit
+     */
+    private static void reopenPlayerInventory(ServerPlayer viewer,
+                                              ServerPlayer target,
+                                              ServerPlayer originalViewer) {
+        Container playerInventory = new SimpleContainer(54);
+        
+        // Copy player's inventory to the chest
+        AtomicInteger slotId = new AtomicInteger();
+        
+        // Main inventory (0-35)
+        for (int i = 0; i < target.getInventory().items.size() && slotId.get() < 36; i++) {
+            playerInventory.setItem(slotId.getAndIncrement(), target.getInventory().items.get(i).copy());
+        }
+        
+        // Armor slots (36-39)
+        for (int i = 0; i < 4; i++) {
+            playerInventory.setItem(slotId.getAndIncrement(), target.getInventory().getArmor(i).copy());
+        }
+        
+        // Offhand (40)
+        playerInventory.setItem(slotId.getAndIncrement(), target.getInventory().offhand.get(0).copy());
+        
+        MenuProvider mainProvider = new SimpleMenuProvider(
+            (id, playerInv, playerEntity) -> new ChestEditableMenu(
+                MenuType.GENERIC_9x6, id, playerInv, playerInventory, 6, target, viewer),
+            Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.player.title", target.getScoreboardName()))
+                .withStyle(net.minecraft.ChatFormatting.AQUA)
         );
         
         viewer.openMenu(mainProvider);

@@ -113,10 +113,14 @@
   "invbackups.enderchest.help.copy.desc": "엔더 상자 백업 아이템을 내 인벤토리로 복사",
 
   "invbackups.curios.view.title": "📿 Curios: %s",
+  "invbackups.curios.edit.title": "📿 Curios 편집: %s",
   "invbackups.curios.button.view": "📿 Curios 슬롯 보기",
+  "invbackups.curios.button.edit": "📿 Curios 슬롯 편집",
   "invbackups.curios.button.back": "◄ 메인 인벤토리로",
   "invbackups.curios.info.title": "ℹ️ Curios 정보",
   "invbackups.curios.info.total": "총 Curios 슬롯: %s개",
   "invbackups.curios.info.items": "보유 아이템: %s개",
-  "invbackups.curios.info.drag": "아이템을 드래그하여 복사하세요"
+  "invbackups.curios.info.drag": "아이템을 드래그하여 복사하세요",
+  "invbackups.curios.info.edit": "아이템을 편집할 수 있습니다",
+  "invbackups.success.curios_updated": "%s의 Curios가 업데이트되었습니다"
 }

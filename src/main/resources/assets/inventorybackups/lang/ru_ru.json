@@ -113,10 +113,14 @@
   "invbackups.enderchest.help.copy.desc": "Скопировать предметы из копии эндер-сундука в ваш инвентарь",
 
   "invbackups.curios.view.title": "📿 Curios: %s",
+  "invbackups.curios.edit.title": "📿 Редактирование Curios: %s",
   "invbackups.curios.button.view": "📿 Просмотр слотов Curios",
+  "invbackups.curios.button.edit": "📿 Редактировать слоты Curios",
   "invbackups.curios.button.back": "◄ Назад к основному инвентарю",
   "invbackups.curios.info.title": "ℹ️ Информация о Curios",
   "invbackups.curios.info.total": "Всего слотов Curios: %s",
   "invbackups.curios.info.items": "Найдено предметов: %s",
-  "invbackups.curios.info.drag": "Перетащите предметы, чтобы скопировать их"
+  "invbackups.curios.info.drag": "Перетащите предметы, чтобы скопировать их",
+  "invbackups.curios.info.edit": "Вы можете редактировать предметы",
+  "invbackups.success.curios_updated": "Curios обновлены для %s"
 }

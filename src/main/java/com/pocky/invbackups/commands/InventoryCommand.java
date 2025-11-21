@@ -38,6 +38,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Map;
 import com.pocky.invbackups.utils.CuriosHelper;
+import com.pocky.invbackups.utils.SophisticatedBackpacksHelper;
 
 public class InventoryCommand {
 
@@ -892,8 +893,14 @@ public class InventoryCommand {
 
             @Override
             public void onTake(Player player, ItemStack stack) {
-                // Give player a copy
-                ItemStack copy = stack.copy();
+                // Give player a copy (with special handling for backpacks)
+                ItemStack copy;
+                if (SophisticatedBackpacksHelper.isSophisticatedBackpack(stack)) {
+                    // For backpacks, create a copy with a new UUID to avoid conflicts
+                    copy = SophisticatedBackpacksHelper.copyBackpackWithNewUuid(stack);
+                } else {
+                    copy = stack.copy();
+                }
 
                 // Restore original item in backup slot (infinite copying)
                 ItemStack original = originalItems.get(this.getSlotIndex());
@@ -1500,7 +1507,14 @@ public class InventoryCommand {
             
             @Override
             public void onTake(Player player, ItemStack stack) {
-                ItemStack copy = stack.copy();
+                // Give player a copy (with special handling for backpacks)
+                ItemStack copy;
+                if (SophisticatedBackpacksHelper.isSophisticatedBackpack(stack)) {
+                    // For backpacks, create a copy with a new UUID to avoid conflicts
+                    copy = SophisticatedBackpacksHelper.copyBackpackWithNewUuid(stack);
+                } else {
+                    copy = stack.copy();
+                }
                 
                 // 원본 복원 (무한 복사)
                 int curiosIndex = 1000 + this.getSlotIndex();

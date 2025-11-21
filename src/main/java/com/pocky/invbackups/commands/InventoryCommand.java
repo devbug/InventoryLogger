@@ -22,6 +22,7 @@ import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.ChestMenu;
+import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
@@ -185,7 +186,7 @@ public class InventoryCommand {
                 source.getServer(), targetName);
 
         if (resolvedOpt.isEmpty()) {
-            ChatUI.showError(executor, Component.translatable("invbackups.error.player_not_found", targetName).getString());
+            ChatUI.showError(executor, com.pocky.invbackups.utils.TranslationHelper.translate(executor, "invbackups.error.player_not_found", targetName));
             return 0;
         }
 
@@ -193,23 +194,20 @@ public class InventoryCommand {
         InventoryData invData = JsonFileHandler.load("inventory/" + resolved.getUuid() + "/", date, InventoryData.class);
 
         if (invData == null) {
-            ChatUI.showError(executor, Component.translatable("invbackups.error.backup_not_found", date).getString());
+            ChatUI.showError(executor, com.pocky.invbackups.utils.TranslationHelper.translate(executor, "invbackups.error.backup_not_found", date));
             return 0;
         }
 
         // Only restore if player is online
         if (!resolved.isOnline()) {
-            ChatUI.showError(executor, Component.translatable("invbackups.error.player_offline_cannot_restore", resolved.getName()).getString());
+            ChatUI.showError(executor, com.pocky.invbackups.utils.TranslationHelper.translate(executor, "invbackups.error.player_offline_cannot_restore", resolved.getName()));
             return 0;
         }
 
         ServerPlayer target = resolved.getOnlinePlayer();
         target.getInventory().replaceWith(invData.getInventory(target));
-        ChatUI.showSuccess(executor, Component.translatable("invbackups.success.restored",
-                Component.literal(date).withStyle(net.minecraft.ChatFormatting.WHITE),
-                Component.literal(target.getScoreboardName()).withStyle(net.minecraft.ChatFormatting.WHITE)).getString());
-        ChatUI.showInfo(target, Component.translatable("invbackups.info.inventory_restored",
-                Component.literal(date).withStyle(net.minecraft.ChatFormatting.WHITE)).getString());
+        ChatUI.showSuccess(executor, com.pocky.invbackups.utils.TranslationHelper.translate(executor, "invbackups.success.restored", date, target.getScoreboardName()));
+        ChatUI.showInfo(target, com.pocky.invbackups.utils.TranslationHelper.translate(target, "invbackups.info.inventory_restored", date));
         return 1;
     }
 
@@ -244,9 +242,7 @@ public class InventoryCommand {
             }
         });
 
-        ChatUI.showSuccess(executor, Component.translatable("invbackups.success.copied",
-                Component.literal(date).withStyle(net.minecraft.ChatFormatting.WHITE),
-                Component.literal(resolved.getName()).withStyle(net.minecraft.ChatFormatting.WHITE)).getString());
+        ChatUI.showSuccess(executor, Component.translatable("invbackups.success.copied", date, resolved.getName()).getString());
         return 1;
     }
 
@@ -300,14 +296,13 @@ public class InventoryCommand {
 
         MenuProvider chestMenuProvider = new SimpleMenuProvider(
                 (id, playerInv, playerEntity) -> new ChestCopyableMenu(
-                        MenuType.GENERIC_9x6, id, playerInv, chestContainer, 6, originalItems),
-                Component.translatable("invbackups.preview.title", resolved.getName(), date)
+                        MenuType.GENERIC_9x6, id, playerInv, chestContainer, 6, originalItems, resolved, executor),
+                Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(executor, "invbackups.preview.title", resolved.getName(), date))
                         .withStyle(style -> style.withColor(net.minecraft.ChatFormatting.GOLD))
         );
 
         executor.openMenu(chestMenuProvider);
-        ChatUI.showInfo(executor, Component.translatable("invbackups.info.viewing_copyable",
-                Component.literal(date).withStyle(net.minecraft.ChatFormatting.WHITE)).getString());
+        ChatUI.showInfo(executor, com.pocky.invbackups.utils.TranslationHelper.translate(executor, "invbackups.info.viewing_copyable", date));
 
         return 1;
     }
@@ -359,13 +354,12 @@ public class InventoryCommand {
         MenuProvider chestMenuProvider = new SimpleMenuProvider(
                 (id, playerInv, playerEntity) -> new ChestEditableMenu(
                         MenuType.GENERIC_9x6, id, playerInv, playerInventory, 6, target),
-                Component.translatable("invbackups.player.title", target.getScoreboardName())
+                Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(executor, "invbackups.player.title", target.getScoreboardName()))
                         .withStyle(style -> style.withColor(net.minecraft.ChatFormatting.AQUA))
         );
 
         executor.openMenu(chestMenuProvider);
-        ChatUI.showInfo(executor, Component.translatable("invbackups.info.viewing_player",
-                Component.literal(target.getScoreboardName()).withStyle(net.minecraft.ChatFormatting.WHITE)).getString());
+        ChatUI.showInfo(executor, com.pocky.invbackups.utils.TranslationHelper.translate(executor, "invbackups.info.viewing_player", target.getScoreboardName()));
 
         return 1;
     }
@@ -640,19 +634,37 @@ public class InventoryCommand {
 
     /**
      * Copyable backup preview menu - allows dragging items to copy them infinitely
+     * Items can only be copied OUT, not placed IN
      */
     private static class ChestCopyableMenu extends ChestMenu {
         private final java.util.Map<Integer, ItemStack> originalItems;
         private final Container chestContainer;
         private final int containerSize;
+        private final PlayerResolver.ResolvedPlayer targetPlayer;
+        private final ServerPlayer viewer;
 
         public ChestCopyableMenu(MenuType<?> menuType, int containerId,
                                  Inventory playerInv, Container container,
-                                 int rows, java.util.Map<Integer, ItemStack> original) {
+                                 int rows, java.util.Map<Integer, ItemStack> original,
+                                 PlayerResolver.ResolvedPlayer target, ServerPlayer viewer) {
             super(menuType, containerId, playerInv, container, rows);
             this.originalItems = original;
             this.chestContainer = container;
             this.containerSize = rows * 9; // 54 slots for 6 rows
+            this.targetPlayer = target;
+            this.viewer = viewer;
+            
+            // Add back button in last slot (53)
+            ItemStack backButton = new ItemStack(Items.BARRIER);
+            backButton.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME,
+                Component.literal("◄ Back to Browser")
+                    .withStyle(net.minecraft.ChatFormatting.RED));
+            List<Component> lore = new ArrayList<>();
+            lore.add(Component.literal("Click to return to backup browser")
+                .withStyle(net.minecraft.ChatFormatting.GRAY));
+            backButton.set(net.minecraft.core.component.DataComponents.LORE,
+                new net.minecraft.world.item.component.ItemLore(lore));
+            container.setItem(53, backButton);
         }
 
         @Override
@@ -670,7 +682,7 @@ public class InventoryCommand {
             // Player inventory slots (lower)
             return super.addSlot(slot);
         }
-
+        
         @Override
         public ItemStack quickMoveStack(Player player, int index) {
             // Shift+click handling
@@ -682,11 +694,11 @@ public class InventoryCommand {
             ItemStack slotStack = slot.getItem();
 
             // From backup slots to player inventory
-            if (index < 54) {
+            if (index < this.containerSize) {
                 ItemStack copy = slotStack.copy();
 
                 // Try to add to player inventory
-                if (!this.moveItemStackTo(copy, 54, this.slots.size(), true)) {
+                if (!this.moveItemStackTo(copy, this.containerSize, this.slots.size(), true)) {
                     return ItemStack.EMPTY;
                 }
 
@@ -706,8 +718,46 @@ public class InventoryCommand {
 
                 return copy;
             }
-
+            
+            // Block shift+click from player inventory to backup container
             return ItemStack.EMPTY;
+        }
+        
+        @Override
+        public void clicked(int slotId, int button, ClickType clickType, Player player) {
+            // Handle back button click (slot 53)
+            if (slotId == 53) {
+                player.closeContainer();
+                if (player instanceof ServerPlayer sp) {
+                    sp.getServer().execute(() -> {
+                        // Reopen backup browser
+                        try {
+                            Path backupDir = Paths.get("InventoryLog/inventory/" + targetPlayer.getUuid() + "/");
+                            File dir = backupDir.toFile();
+                            File[] files = dir.listFiles((d, name) -> name.endsWith(".json"));
+                            if (files != null && files.length > 0) {
+                                List<File> backupFiles = new ArrayList<>(List.of(files));
+                                backupFiles.sort(Comparator.comparingLong(File::lastModified).reversed());
+                                openBrowserAtPage(sp, targetPlayer, backupFiles, 0);
+                            }
+                        } catch (Exception e) {
+                            ChatUI.showError(sp, "Failed to open backup browser");
+                        }
+                    });
+                }
+                return;
+            }
+            
+            // Block placing items in backup container slots (0-53)
+            if (slotId >= 0 && slotId < this.containerSize) {
+                ItemStack cursor = player.containerMenu.getCarried();
+                if (!cursor.isEmpty()) {
+                    // Player is trying to place an item, block it
+                    return;
+                }
+            }
+            
+            super.clicked(slotId, button, clickType, player);
         }
 
         @Override
@@ -852,13 +902,12 @@ public class InventoryCommand {
         MenuProvider browserProvider = new SimpleMenuProvider(
                 (id, playerInv, playerEntity) -> new BackupBrowserMenu(
                         MenuType.GENERIC_9x6, id, playerInv, backupFiles, target, viewer, page),
-                Component.translatable("invbackups.gui.browser.title", target.getName())
+                Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.gui.browser.title", target.getName()))
                         .withStyle(style -> style.withColor(net.minecraft.ChatFormatting.GOLD))
         );
 
         viewer.openMenu(browserProvider);
-        ChatUI.showInfo(viewer, Component.translatable("invbackups.gui.browser.opened",
-                Component.literal(target.getName()).withStyle(net.minecraft.ChatFormatting.WHITE)).getString());
+        ChatUI.showInfo(viewer, com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.gui.browser.opened", target.getName()));
     }
 
     /**
@@ -930,17 +979,16 @@ public class InventoryCommand {
                 
                 // Set item name with backup date/time
                 icon.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME, 
-                    Component.translatable("invbackups.gui.backup.item.title")
-                        .append(" ")
+                    Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.gui.backup.item.title") + " ")
                         .append(Component.literal(fileName)
                             .withStyle(net.minecraft.ChatFormatting.YELLOW)));
                 
                 // Add lore with backup info
                 List<Component> lore = new ArrayList<>();
-                lore.add(Component.translatable(typeKey)
+                lore.add(Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, typeKey))
                     .withStyle(net.minecraft.ChatFormatting.GRAY));
                 lore.add(Component.empty());
-                lore.add(Component.translatable("invbackups.gui.backup.click")
+                lore.add(Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.gui.backup.click"))
                     .withStyle(net.minecraft.ChatFormatting.GREEN));
                 
                 icon.set(net.minecraft.core.component.DataComponents.LORE,
@@ -955,7 +1003,7 @@ public class InventoryCommand {
             if (currentPage > 0) {
                 ItemStack prevButton = new ItemStack(Items.ARROW);
                 prevButton.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME,
-                    Component.translatable("invbackups.gui.page.previous")
+                    Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.gui.page.previous"))
                         .withStyle(net.minecraft.ChatFormatting.GREEN));
                 container.setItem(45, prevButton);
             }
@@ -963,13 +1011,13 @@ public class InventoryCommand {
             // Page info (slot 49 - center)
             ItemStack pageInfo = new ItemStack(Items.PAPER);
             pageInfo.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME,
-                Component.translatable("invbackups.gui.page.info", 
-                    currentPage + 1, totalPages)
+                Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.gui.page.info", 
+                    currentPage + 1, totalPages))
                     .withStyle(net.minecraft.ChatFormatting.YELLOW));
             
             List<Component> pageInfoLore = new ArrayList<>();
-            pageInfoLore.add(Component.translatable("invbackups.gui.page.showing",
-                    startIndex + 1, endIndex, backupFiles.size())
+            pageInfoLore.add(Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.gui.page.showing",
+                    startIndex + 1, endIndex, backupFiles.size()))
                 .withStyle(net.minecraft.ChatFormatting.GRAY));
             pageInfo.set(net.minecraft.core.component.DataComponents.LORE,
                 new net.minecraft.world.item.component.ItemLore(pageInfoLore));
@@ -979,7 +1027,7 @@ public class InventoryCommand {
             if (currentPage < totalPages - 1) {
                 ItemStack nextButton = new ItemStack(Items.ARROW);
                 nextButton.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME,
-                    Component.translatable("invbackups.gui.page.next")
+                    Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.gui.page.next"))
                         .withStyle(net.minecraft.ChatFormatting.GREEN));
                 container.setItem(53, nextButton);
             }
@@ -1025,67 +1073,92 @@ public class InventoryCommand {
         }
 
         @Override
+        public void clicked(int slotId, int button, net.minecraft.world.inventory.ClickType clickType, Player player) {
+            // Only handle left clicks
+            if (clickType != net.minecraft.world.inventory.ClickType.PICKUP || button != 0) {
+                return; // Block all other interactions
+            }
+            
+            // Navigation buttons
+            if (slotId == 45 && currentPage > 0) {
+                // Previous page
+                player.closeContainer();
+                if (player instanceof ServerPlayer sp) {
+                    sp.getServer().execute(() -> {
+                        openBrowserAtPage(sp, targetPlayer, backupFiles, currentPage - 1);
+                    });
+                }
+                return;
+            } else if (slotId == 53 && currentPage < getTotalPages() - 1) {
+                // Next page
+                player.closeContainer();
+                if (player instanceof ServerPlayer sp) {
+                    sp.getServer().execute(() -> {
+                        openBrowserAtPage(sp, targetPlayer, backupFiles, currentPage + 1);
+                    });
+                }
+                return;
+            }
+            
+            // Backup selection (slots 0-44)
+            if (slotId >= 0 && slotId < 45) {
+                int backupIndex = (currentPage * ITEMS_PER_PAGE) + slotId;
+                if (backupIndex < backupFiles.size()) {
+                    File selectedBackup = backupFiles.get(backupIndex);
+                    String backupName = selectedBackup.getName().replace(".json", "");
+                    
+                    // Close current menu
+                    player.closeContainer();
+                    
+                    // Open preview in next tick
+                    if (player instanceof ServerPlayer sp) {
+                        sp.getServer().execute(() -> {
+                            openBackupPreview(sp, targetPlayer, backupName);
+                        });
+                    }
+                }
+            }
+        }
+
+        @Override
         protected Slot addSlot(Slot slot) {
-            // Make backup slots clickable but not removable
+            // Make all slots non-interactable except via clicked()
             if (slot.container == this.browserContainer) {
                 return super.addSlot(new Slot(slot.container, slot.getSlotIndex(), slot.x, slot.y) {
                     @Override
                     public boolean mayPlace(ItemStack stack) {
-                        return false;
+                        return false; // Cannot place items
                     }
 
                     @Override
                     public boolean mayPickup(Player player) {
-                        return false;
-                    }
-                    
-                    @Override
-                    public void onTake(Player player, ItemStack stack) {
-                        int slotIndex = this.getSlotIndex();
-                        
-                        // Navigation buttons
-                        if (slotIndex == 45 && currentPage > 0) {
-                            // Previous page
-                            player.closeContainer();
-                            if (player instanceof ServerPlayer sp) {
-                                sp.getServer().execute(() -> {
-                                    openBrowserAtPage(sp, targetPlayer, backupFiles, currentPage - 1);
-                                });
-                            }
-                            return;
-                        } else if (slotIndex == 53 && currentPage < getTotalPages() - 1) {
-                            // Next page
-                            player.closeContainer();
-                            if (player instanceof ServerPlayer sp) {
-                                sp.getServer().execute(() -> {
-                                    openBrowserAtPage(sp, targetPlayer, backupFiles, currentPage + 1);
-                                });
-                            }
-                            return;
-                        }
-                        
-                        // Backup selection (slots 0-44)
-                        if (slotIndex < 45) {
-                            int backupIndex = (currentPage * ITEMS_PER_PAGE) + slotIndex;
-                            if (backupIndex < backupFiles.size()) {
-                                File selectedBackup = backupFiles.get(backupIndex);
-                                String backupName = selectedBackup.getName().replace(".json", "");
-                                
-                                // Close current menu
-                                player.closeContainer();
-                                
-                                // Open preview in next tick
-                                if (player instanceof ServerPlayer sp) {
-                                    sp.getServer().execute(() -> {
-                                        openBackupPreview(sp, targetPlayer, backupName);
-                                    });
-                                }
-                            }
-                        }
+                        return false; // Cannot pickup items
                     }
                 });
             }
             return super.addSlot(slot);
+        }
+        
+        @Override
+        public void removed(Player player) {
+            super.removed(player);
+            // Return any items that somehow got into the container
+            if (player instanceof ServerPlayer sp) {
+                for (int i = 0; i < this.browserContainer.getContainerSize(); i++) {
+                    ItemStack stack = this.browserContainer.getItem(i);
+                    if (!stack.isEmpty() && !isNavigationSlot(i) && !isBackupIcon(i)) {
+                        sp.getInventory().placeItemBackInInventory(stack.copy());
+                    }
+                }
+            }
+        }
+        
+        private boolean isNavigationSlot(int slot) {
+            return slot == 45 || slot == 49 || slot == 53;
+        }
+        
+        private boolean isBackupIcon(int slot) {
+            return slot < 45;
         }
 
         @Override
@@ -1102,7 +1175,7 @@ public class InventoryCommand {
 
                 if (invData == null) {
                     ChatUI.showError(viewer, 
-                        Component.translatable("invbackups.error.backup_not_found", backupName).getString());
+                        com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.error.backup_not_found", backupName));
                     return;
                 }
 
@@ -1118,17 +1191,16 @@ public class InventoryCommand {
 
                 MenuProvider chestMenuProvider = new SimpleMenuProvider(
                         (id, playerInv, playerEntity) -> new ChestCopyableMenu(
-                                MenuType.GENERIC_9x6, id, playerInv, chestContainer, 6, originalItems),
-                        Component.translatable("invbackups.preview.title", target.getName(), backupName)
+                                MenuType.GENERIC_9x6, id, playerInv, chestContainer, 6, originalItems, target, viewer),
+                        Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.preview.title", target.getName(), backupName))
                                 .withStyle(style -> style.withColor(net.minecraft.ChatFormatting.GOLD))
                 );
 
                 viewer.openMenu(chestMenuProvider);
-                ChatUI.showInfo(viewer, Component.translatable("invbackups.info.viewing_copyable",
-                        Component.literal(backupName).withStyle(net.minecraft.ChatFormatting.WHITE)).getString());
+                ChatUI.showInfo(viewer, com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.info.viewing_copyable", backupName));
             } catch (Exception e) {
                 ChatUI.showError(viewer, 
-                    Component.translatable("invbackups.error.backup_not_found", backupName).getString());
+                    com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.error.backup_not_found", backupName));
             }
         }
     }

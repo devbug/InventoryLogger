@@ -1,5 +1,6 @@
 package com.pocky.invbackups.ui;
 
+import com.pocky.invbackups.utils.TranslationHelper;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
@@ -15,25 +16,35 @@ import java.util.UUID;
 public class ChatUI {
 
     /**
-     * Creates a translatable component with formatting
+     * Creates a translated component using server-side translation
+     * This is necessary because this is a server-only mod and clients don't have the language files
+     */
+    private static Component t(ServerPlayer player, String key, Object... args) {
+        return Component.literal(TranslationHelper.translate(player, key, args));
+    }
+    
+    /**
+     * Creates a translated component with default language (for non-player contexts)
      */
     private static Component t(String key, Object... args) {
-        return Component.translatable(key, args);
+        return Component.literal(TranslationHelper.translate("en_us", key, args));
     }
 
     /**
      * Gets prefix with proper formatting
      */
-    private static Component getPrefix() {
-        return Component.literal("§8[§6").append(t("invbackups.prefix").copy().withStyle(style -> style.withColor(ChatFormatting.GOLD))).append(Component.literal("§8] §r"));
+    private static Component getPrefix(ServerPlayer player) {
+        return Component.literal("§8[§6")
+                .append(t(player, "invbackups.prefix").copy().withStyle(style -> style.withColor(ChatFormatting.GOLD)))
+                .append(Component.literal("§8] §r"));
     }
 
     /**
      * Creates a header for the chat interface
      */
-    public static Component createHeader(String translationKey) {
+    public static Component createHeader(ServerPlayer player, String translationKey) {
         return Component.literal("\n§8§m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
-                .append(Component.literal("§6§l").append(t(translationKey)).append(Component.literal("\n")))
+                .append(Component.literal("§6§l").append(t(player, translationKey)).append(Component.literal("\n")))
                 .append(Component.literal("§8§m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"));
     }
 
@@ -52,12 +63,12 @@ public class ChatUI {
         File folder = new File("InventoryLog/inventory/" + targetUuid + "/");
         File[] listOfFiles = folder.listFiles();
 
-        executor.sendSystemMessage(createHeader("invbackups.header.backup_list"));
+        executor.sendSystemMessage(createHeader(executor, "invbackups.header.backup_list"));
 
         if (listOfFiles == null || listOfFiles.length == 0) {
             executor.sendSystemMessage(Component.literal("✖ ")
                     .withStyle(ChatFormatting.RED)
-                    .append(t("invbackups.error.no_backups").copy().withStyle(ChatFormatting.RED)));
+                    .append(t(executor, "invbackups.error.no_backups").copy().withStyle(ChatFormatting.RED)));
             executor.sendSystemMessage(createFooter());
             return;
         }
@@ -73,7 +84,7 @@ public class ChatUI {
         if (matchingFiles.isEmpty()) {
             executor.sendSystemMessage(Component.literal("✖ ")
                     .withStyle(ChatFormatting.RED)
-                    .append(t("invbackups.error.no_match", Component.literal(filter).withStyle(ChatFormatting.YELLOW))
+                    .append(t(executor, "invbackups.error.no_match", filter)
                             .copy().withStyle(ChatFormatting.RED)));
             executor.sendSystemMessage(createFooter());
             return;
@@ -90,15 +101,11 @@ public class ChatUI {
         int endIndex = Math.min(startIndex + ITEMS_PER_PAGE, matchingFiles.size());
 
         // Show header info
-        executor.sendSystemMessage(t("invbackups.info.player",
-                Component.literal(targetName).withStyle(ChatFormatting.WHITE))
+        executor.sendSystemMessage(t(executor, "invbackups.info.player", targetName)
                 .copy().withStyle(ChatFormatting.GRAY));
-        executor.sendSystemMessage(t("invbackups.info.total_backups",
-                Component.literal(String.valueOf(matchingFiles.size())).withStyle(ChatFormatting.WHITE))
+        executor.sendSystemMessage(t(executor, "invbackups.info.total_backups", String.valueOf(matchingFiles.size()))
                 .copy().withStyle(ChatFormatting.GRAY));
-        executor.sendSystemMessage(t("invbackups.info.page",
-                Component.literal(String.valueOf(currentPage)).withStyle(ChatFormatting.WHITE),
-                Component.literal(String.valueOf(totalPages)).withStyle(ChatFormatting.WHITE))
+        executor.sendSystemMessage(t(executor, "invbackups.info.page", String.valueOf(currentPage), String.valueOf(totalPages))
                 .copy().withStyle(ChatFormatting.GRAY).append(Component.literal("\n")));
 
         // Show quick date filters
@@ -121,7 +128,7 @@ public class ChatUI {
                             .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND,
                                     "/inventory view " + targetName + " " + fileName))
                             .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
-                                    t("invbackups.button.hover.view").copy().withStyle(ChatFormatting.GREEN))));
+                                    t(executor, "invbackups.button.hover.view").copy().withStyle(ChatFormatting.GREEN))));
 
             // Restore button
             MutableComponent restoreBtn = Component.literal(" [↻]")
@@ -130,7 +137,7 @@ public class ChatUI {
                             .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND,
                                     "/inventory set " + targetName + " " + fileName))
                             .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
-                                    t("invbackups.button.hover.restore").copy().withStyle(ChatFormatting.YELLOW))));
+                                    t(executor, "invbackups.button.hover.restore").copy().withStyle(ChatFormatting.YELLOW))));
 
             // Copy to self button
             MutableComponent copyBtn = Component.literal(" [📥]")
@@ -139,7 +146,7 @@ public class ChatUI {
                             .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND,
                                     "/inventory copy " + targetName + " " + fileName))
                             .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
-                                    t("invbackups.button.hover.copy").copy().withStyle(ChatFormatting.AQUA))));
+                                    t(executor, "invbackups.button.hover.copy").copy().withStyle(ChatFormatting.AQUA))));
 
             line.append(viewBtn).append(restoreBtn).append(copyBtn);
             executor.sendSystemMessage(line);
@@ -321,7 +328,7 @@ public class ChatUI {
      */
     public static void showSuccess(ServerPlayer player, String message) {
         player.sendSystemMessage(Component.empty()
-                .append(getPrefix())
+                .append(getPrefix(player))
                 .append(Component.literal("✔ " + message).withStyle(ChatFormatting.GREEN)));
     }
 
@@ -330,7 +337,7 @@ public class ChatUI {
      */
     public static void showError(ServerPlayer player, String message) {
         player.sendSystemMessage(Component.empty()
-                .append(getPrefix())
+                .append(getPrefix(player))
                 .append(Component.literal("✖ " + message).withStyle(ChatFormatting.RED)));
     }
 
@@ -339,7 +346,7 @@ public class ChatUI {
      */
     public static void showInfo(ServerPlayer player, String message) {
         player.sendSystemMessage(Component.empty()
-                .append(getPrefix())
+                .append(getPrefix(player))
                 .append(Component.literal(message).withStyle(ChatFormatting.GRAY)));
     }
 
@@ -347,7 +354,7 @@ public class ChatUI {
      * Shows help message with all available commands
      */
     public static void showHelp(ServerPlayer player) {
-        player.sendSystemMessage(createHeader("invbackups.header.help"));
+        player.sendSystemMessage(createHeader(player, "invbackups.header.help"));
 
         player.sendSystemMessage(t("invbackups.help.player").copy().withStyle(ChatFormatting.GOLD));
         player.sendSystemMessage(Component.literal("  ").append(t("invbackups.help.player.desc").copy().withStyle(ChatFormatting.GRAY)).append(Component.literal("\n")));
@@ -383,7 +390,7 @@ public class ChatUI {
         File folder = new File("InventoryLog/enderchest/" + targetUuid + "/");
         File[] listOfFiles = folder.listFiles();
 
-        executor.sendSystemMessage(createHeader("invbackups.enderchest.header.backup_list"));
+        executor.sendSystemMessage(createHeader(executor, "invbackups.enderchest.header.backup_list"));
 
         if (listOfFiles == null || listOfFiles.length == 0) {
             executor.sendSystemMessage(Component.literal("✖ ")
@@ -608,7 +615,7 @@ public class ChatUI {
      * Shows help message for ender chest commands
      */
     public static void showEnderChestHelp(ServerPlayer player) {
-        player.sendSystemMessage(createHeader("invbackups.enderchest.header.help"));
+        player.sendSystemMessage(createHeader(player, "invbackups.enderchest.header.help"));
 
         player.sendSystemMessage(t("invbackups.enderchest.help.player").copy().withStyle(ChatFormatting.DARK_PURPLE));
         player.sendSystemMessage(Component.literal("  ").append(t("invbackups.enderchest.help.player.desc").copy().withStyle(ChatFormatting.GRAY)).append(Component.literal("\n")));

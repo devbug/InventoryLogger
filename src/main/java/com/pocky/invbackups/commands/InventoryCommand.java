@@ -288,10 +288,12 @@ public class InventoryCommand {
         
         Container chestContainer = new SimpleContainer(54);
 
-        AtomicInteger slotId = new AtomicInteger();
-        originalItems.forEach((i, e) -> {
-            chestContainer.setItem(slotId.get(), e.copy());
-            slotId.getAndIncrement();
+        // Map inventory slots to chest GUI slots
+        originalItems.forEach((inventoryIndex, itemStack) -> {
+            int chestSlot = mapInventoryToChestSlot(inventoryIndex);
+            if (chestSlot >= 0 && chestSlot < 53) {  // 53 is reserved for back button
+                chestContainer.setItem(chestSlot, itemStack.copy());
+            }
         });
 
         MenuProvider chestMenuProvider = new SimpleMenuProvider(
@@ -1183,10 +1185,13 @@ public class InventoryCommand {
                 java.util.Map<Integer, ItemStack> originalItems = invData.decode(viewer.level().registryAccess());
                 
                 Container chestContainer = new SimpleContainer(54);
-                AtomicInteger slotId = new AtomicInteger();
-                originalItems.forEach((i, e) -> {
-                    chestContainer.setItem(slotId.get(), e.copy());
-                    slotId.getAndIncrement();
+                
+                // Map inventory slots to chest GUI slots
+                originalItems.forEach((inventoryIndex, itemStack) -> {
+                    int chestSlot = mapInventoryToChestSlot(inventoryIndex);
+                    if (chestSlot >= 0 && chestSlot < 53) {  // 53 is reserved for back button
+                        chestContainer.setItem(chestSlot, itemStack.copy());
+                    }
                 });
 
                 MenuProvider chestMenuProvider = new SimpleMenuProvider(
@@ -1203,5 +1208,28 @@ public class InventoryCommand {
                     com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.error.backup_not_found", backupName));
             }
         }
+    }
+    
+    /**
+     * Maps inventory slot indices to chest GUI slot indices
+     * Inventory layout: 0-35 (inventory), 100-103 (armor), -106 (offhand), 1000+ (curios)
+     * Chest GUI layout: 0-35 (inventory rows 1-4), 36-39 (armor row 5), 40 (offhand row 5), 45-52 (curios row 6), 53 (back button row 6)
+     */
+    private static int mapInventoryToChestSlot(int inventoryIndex) {
+        if (inventoryIndex >= 0 && inventoryIndex <= 35) {
+            // Regular inventory and hotbar: direct mapping (rows 1-4)
+            return inventoryIndex;
+        } else if (inventoryIndex >= 100 && inventoryIndex <= 103) {
+            // Armor slots: 100-103 -> 36-39 (row 5, left side)
+            return inventoryIndex - 64;  // 100->36, 101->37, 102->38, 103->39
+        } else if (inventoryIndex == -106) {
+            // Offhand: -106 -> 40 (row 5, after armor)
+            return 40;
+        } else if (inventoryIndex >= 1000) {
+            // Curios slots: 1000+ -> 45-52 (row 6, max 8 curios)
+            int curiosSlot = 45 + (inventoryIndex - 1000);
+            return curiosSlot <= 52 ? curiosSlot : -1;  // Max slot 52
+        }
+        return -1;  // Unknown slot, skip
     }
 }

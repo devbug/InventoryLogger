@@ -97,8 +97,9 @@ public class InventoryData implements Serializable {
             } else if (CuriosHelper.isCuriosSlot(index)) {
                 // Collect Curios items separately
                 curiosItems.put(index, stack);
-            } else {
-                inv.add(index, stack);
+            } else if (index >= 0 && index < inv.items.size()) {
+                // Regular inventory slots: set to exact position
+                inv.items.set(index, stack);
             }
         });
 

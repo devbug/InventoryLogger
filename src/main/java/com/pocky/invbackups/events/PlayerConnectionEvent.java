@@ -45,7 +45,7 @@ public class PlayerConnectionEvent {
     private void saveInventory(ServerPlayer player, String suffix) {
         if (InventoryUtil.isEmpty(player)) return;
 
-        InventoryData.encode(player.level().registryAccess(), InventoryUtil.collectInventory(player)).save(player.getUUID(), suffix);
+        InventoryData.encode(player.level().registryAccess(), InventoryUtil.collectInventory(player), player).save(player.getUUID(), suffix);
     }
 
     private void saveEnderChest(ServerPlayer player, String suffix) {

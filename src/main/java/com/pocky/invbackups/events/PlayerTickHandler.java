@@ -68,7 +68,7 @@ public class PlayerTickHandler {
 
         Map<Integer, ItemStack> itemStackMap = InventoryUtil.collectInventory(player);
 
-        var data = InventoryData.encode(player.level().registryAccess(), itemStackMap);
+        var data = InventoryData.encode(player.level().registryAccess(), itemStackMap, player);
 
         if (data.equals(lastInventory.get(player))) {
             return;

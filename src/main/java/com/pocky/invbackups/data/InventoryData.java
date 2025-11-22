@@ -32,6 +32,12 @@ public class InventoryData implements Serializable {
      * This ensures backpack contents are preserved even if the player modifies them later
      */
     Map<String, String> backpackSnapshots = new HashMap<>();
+    
+    /**
+     * Stores player experience data (level, progress, total)
+     * Null for legacy backups that didn't include experience
+     */
+    private ExperienceData experienceData;
 
     public void save(UUID playerUUID, boolean isPlayerDead) {
         save(playerUUID, isPlayerDead ? "death" : null);
@@ -129,7 +135,21 @@ public class InventoryData implements Serializable {
         return inv;
     }
 
+    /**
+     * Legacy encode without experience data (for backwards compatibility)
+     */
     public static InventoryData encode(HolderLookup.Provider registryAccess, Map<Integer, ItemStack> map) {
+        return encode(registryAccess, map, null);
+    }
+    
+    /**
+     * Encode inventory data with optional experience data
+     * @param registryAccess Registry access for item serialization
+     * @param map Item map (slot -> ItemStack)
+     * @param player Player to extract experience from (null to skip experience backup)
+     * @return InventoryData instance
+     */
+    public static InventoryData encode(HolderLookup.Provider registryAccess, Map<Integer, ItemStack> map, ServerPlayer player) {
         List<ItemData> result = new ArrayList<>();
         Map<String, String> backpackSnapshots = new HashMap<>();
 
@@ -155,6 +175,11 @@ public class InventoryData implements Serializable {
         InventoryData data = new InventoryData();
         data.setData(result);
         data.setBackpackSnapshots(backpackSnapshots);
+        
+        // Add experience data if player is provided
+        if (player != null) {
+            data.setExperienceData(ExperienceData.fromPlayer(player));
+        }
 
         return data;
     }
@@ -180,6 +205,14 @@ public class InventoryData implements Serializable {
     
     public void setBackpackSnapshots(Map<String, String> backpackSnapshots) {
         this.backpackSnapshots = backpackSnapshots != null ? backpackSnapshots : new HashMap<>();
+    }
+    
+    public ExperienceData getExperienceData() {
+        return experienceData;
+    }
+    
+    public void setExperienceData(ExperienceData experienceData) {
+        this.experienceData = experienceData;
     }
 
     @Override

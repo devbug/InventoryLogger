@@ -122,5 +122,11 @@
   "invbackups.curios.info.items": "Items Found: %s",
   "invbackups.curios.info.drag": "Drag items to copy them",
   "invbackups.curios.info.edit": "You can edit items",
-  "invbackups.success.curios_updated": "Curios updated for %s"
+  "invbackups.success.curios_updated": "Curios updated for %s",
+
+  "invbackups.success.experience_restored": "Experience restored: %s",
+  "invbackups.gui.experience": "Experience",
+  "invbackups.gui.experience.level": "Level: %s",
+  "invbackups.gui.experience.progress": "Progress: %s%%",
+  "invbackups.gui.experience.total": "Total XP: %s"
 }

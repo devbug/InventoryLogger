@@ -38,7 +38,8 @@ public class ContainerCloseEvent {
         // Save backup asynchronously
         InventoryData.encode(
             player.level().registryAccess(), 
-            InventoryUtil.collectInventory(player)
+            InventoryUtil.collectInventory(player),
+            player
         ).saveAsync(player.getUUID(), "container-close");
     }
 }

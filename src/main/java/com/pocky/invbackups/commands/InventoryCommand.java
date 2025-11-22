@@ -240,6 +240,14 @@ public class InventoryCommand {
 
         ServerPlayer target = resolved.getOnlinePlayer();
         target.getInventory().replaceWith(invData.getInventory(target));
+        
+        // Restore experience if available
+        com.pocky.invbackups.data.ExperienceData expData = invData.getExperienceData();
+        if (expData != null && expData.hasExperience()) {
+            expData.applyToPlayer(target);
+            ChatUI.showSuccess(executor, com.pocky.invbackups.utils.TranslationHelper.translate(executor, "invbackups.success.experience_restored", expData.getDisplayString()));
+        }
+        
         ChatUI.showSuccess(executor, com.pocky.invbackups.utils.TranslationHelper.translate(executor, "invbackups.success.restored", date, target.getScoreboardName()));
         ChatUI.showInfo(target, com.pocky.invbackups.utils.TranslationHelper.translate(target, "invbackups.info.inventory_restored", date));
         return 1;
@@ -329,10 +337,13 @@ public class InventoryCommand {
                 chestContainer.setItem(chestSlot, itemStack.copy());
             }
         });
+        
+        // Get experience data from backup
+        com.pocky.invbackups.data.ExperienceData expData = invData.getExperienceData();
 
         MenuProvider chestMenuProvider = new SimpleMenuProvider(
                 (id, playerInv, playerEntity) -> new ChestCopyableMenu(
-                        MenuType.GENERIC_9x6, id, playerInv, chestContainer, 6, originalItems, resolved, executor),
+                        MenuType.GENERIC_9x6, id, playerInv, chestContainer, 6, originalItems, resolved, executor, expData),
                 Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(executor, "invbackups.preview.title", resolved.getName(), date))
                         .withStyle(style -> style.withColor(net.minecraft.ChatFormatting.GOLD))
         );
@@ -1015,17 +1026,20 @@ public class InventoryCommand {
         private final int containerSize;
         private final PlayerResolver.ResolvedPlayer targetPlayer;
         private final ServerPlayer viewer;
+        private final com.pocky.invbackups.data.ExperienceData expData;
 
         public ChestCopyableMenu(MenuType<?> menuType, int containerId,
                                  Inventory playerInv, Container container,
                                  int rows, java.util.Map<Integer, ItemStack> original,
-                                 PlayerResolver.ResolvedPlayer target, ServerPlayer viewer) {
+                                 PlayerResolver.ResolvedPlayer target, ServerPlayer viewer,
+                                 com.pocky.invbackups.data.ExperienceData expData) {
             super(menuType, containerId, playerInv, container, rows);
             this.originalItems = original;
             this.chestContainer = container;
             this.containerSize = rows * 9; // 54 slots for 6 rows
             this.targetPlayer = target;
             this.viewer = viewer;
+            this.expData = expData;
             
             // Count Curios items
             long curiosCount = original.entrySet().stream()
@@ -1054,6 +1068,32 @@ public class InventoryCommand {
                 container.setItem(48, curiosButton);
             }
             
+            // Add experience info button in slot 52
+            ItemStack expInfo = new ItemStack(Items.EXPERIENCE_BOTTLE);
+            expInfo.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME,
+                Component.literal("💫 " + com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.gui.experience"))
+                    .withStyle(net.minecraft.ChatFormatting.AQUA));
+            
+            List<Component> expLore = new ArrayList<>();
+            if (expData != null && expData.hasExperience()) {
+                expLore.add(Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.gui.experience.level", 
+                        String.valueOf(expData.getExperienceLevel())))
+                    .withStyle(net.minecraft.ChatFormatting.GREEN));
+                expLore.add(Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.gui.experience.progress",
+                        String.valueOf((int)(expData.getExperienceProgress() * 100))))
+                    .withStyle(net.minecraft.ChatFormatting.YELLOW));
+                expLore.add(Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.gui.experience.total",
+                        String.valueOf(expData.getTotalExperience())))
+                    .withStyle(net.minecraft.ChatFormatting.GRAY));
+            } else {
+                expLore.add(Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.gui.experience.level", "0"))
+                    .withStyle(net.minecraft.ChatFormatting.GRAY));
+                expLore.add(Component.literal("(Legacy backup - no XP data)")
+                    .withStyle(net.minecraft.ChatFormatting.DARK_GRAY, net.minecraft.ChatFormatting.ITALIC));
+            }
+            expInfo.set(net.minecraft.core.component.DataComponents.LORE, new net.minecraft.world.item.component.ItemLore(expLore));
+            container.setItem(52, expInfo);
+            
             // Add back button in last slot (53)
             ItemStack backButton = new ItemStack(Items.BARRIER);
             backButton.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME,
@@ -1071,9 +1111,28 @@ public class InventoryCommand {
         protected Slot addSlot(Slot slot) {
             // Backup item slots (upper chest) - based on slot index
             if (slot.container == this.chestContainer) {
+                int slotIndex = slot.getSlotIndex();
+                
+                // Debug log
+                if (slotIndex == 52) {
+                    ItemStack item = slot.container.getItem(slotIndex);
+                    com.pocky.invbackups.InventoryBackupsMod.LOGGER.info("addSlot(52): container has item: {}", !item.isEmpty());
+                }
+                
+                // Button slots should be read-only (Curios=48, Experience=52, Back=53)
+                if (slotIndex == 48 || slotIndex == 52 || slotIndex == 53) {
+                    return super.addSlot(new ReadOnlySlot(
+                            slot.container,
+                            slotIndex,
+                            slot.x,
+                            slot.y
+                    ));
+                }
+                
+                // Regular backup slots allow copying
                 return super.addSlot(new CopyableBackupSlot(
                         slot.container,
-                        slot.getSlotIndex(),
+                        slotIndex,
                         slot.x,
                         slot.y,
                         originalItems
@@ -1132,11 +1191,16 @@ public class InventoryCommand {
                     player.closeContainer();
                     if (player instanceof ServerPlayer sp) {
                         sp.getServer().execute(() -> {
-                            openCuriosView(sp, targetPlayer, originalItems, viewer);
+                            openCuriosView(sp, targetPlayer, originalItems, viewer, expData);
                         });
                     }
                 }
                 return;
+            }
+            
+            // Handle experience info button click (slot 52) - read-only
+            if (slotId == 52) {
+                return; // Block all interaction with experience info
             }
             
             // Handle back button click (slot 53)
@@ -1165,7 +1229,7 @@ public class InventoryCommand {
             // Block placing items in backup container slots (0-53)
             if (slotId >= 0 && slotId < this.containerSize) {
                 // Block placing items on button slots
-                if (slotId == 48 || slotId == 53) {
+                if (slotId == 48 || slotId == 52 || slotId == 53) {
                     return;
                 }
                 
@@ -1232,6 +1296,25 @@ public class InventoryCommand {
                 }
 
                 super.onTake(player, stack);
+            }
+        }
+        
+        /**
+         * Read-only slot for UI buttons
+         */
+        private static class ReadOnlySlot extends Slot {
+            public ReadOnlySlot(Container container, int slot, int x, int y) {
+                super(container, slot, x, y);
+            }
+            
+            @Override
+            public boolean mayPlace(ItemStack stack) {
+                return false; // Cannot place items
+            }
+            
+            @Override
+            public boolean mayPickup(Player player) {
+                return false; // Cannot pick up items
             }
         }
     }
@@ -1616,10 +1699,13 @@ public class InventoryCommand {
                         chestContainer.setItem(chestSlot, itemStack.copy());
                     }
                 });
+                
+                // Get experience data from backup
+                com.pocky.invbackups.data.ExperienceData expData = invData.getExperienceData();
 
                 MenuProvider chestMenuProvider = new SimpleMenuProvider(
                         (id, playerInv, playerEntity) -> new ChestCopyableMenu(
-                                MenuType.GENERIC_9x6, id, playerInv, chestContainer, 6, originalItems, target, viewer),
+                                MenuType.GENERIC_9x6, id, playerInv, chestContainer, 6, originalItems, target, viewer, expData),
                         Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.preview.title", target.getName(), backupName))
                                 .withStyle(style -> style.withColor(net.minecraft.ChatFormatting.GOLD))
                 );
@@ -1641,17 +1727,20 @@ public class InventoryCommand {
         private final PlayerResolver.ResolvedPlayer targetPlayer;
         private final ServerPlayer viewer;
         private final Container curiosContainer;
+        private final com.pocky.invbackups.data.ExperienceData expData;
         
         public CuriosViewMenu(MenuType<?> menuType, int containerId,
                               Inventory playerInv,
                               java.util.Map<Integer, ItemStack> original,
                               PlayerResolver.ResolvedPlayer target,
-                              ServerPlayer viewer) {
+                              ServerPlayer viewer,
+                              com.pocky.invbackups.data.ExperienceData expData) {
             super(menuType, containerId, playerInv, new SimpleContainer(54), 6);
             this.originalItems = original;
             this.targetPlayer = target;
             this.viewer = viewer;
             this.curiosContainer = this.getContainer();
+            this.expData = expData;
             
             populateCuriosSlots();
             addNavigationButtons();
@@ -1738,7 +1827,7 @@ public class InventoryCommand {
                 player.closeContainer();
                 if (player instanceof ServerPlayer sp) {
                     sp.getServer().execute(() -> {
-                        reopenMainPreview(sp, targetPlayer, originalItems, viewer);
+                        reopenMainPreview(sp, targetPlayer, originalItems, viewer, expData);
                     });
                 }
                 return;
@@ -2163,10 +2252,11 @@ public class InventoryCommand {
     private static void openCuriosView(ServerPlayer viewer,
                                        PlayerResolver.ResolvedPlayer target,
                                        java.util.Map<Integer, ItemStack> originalItems,
-                                       ServerPlayer originalViewer) {
+                                       ServerPlayer originalViewer,
+                                       com.pocky.invbackups.data.ExperienceData expData) {
         MenuProvider curiosProvider = new SimpleMenuProvider(
             (id, playerInv, playerEntity) -> new CuriosViewMenu(
-                MenuType.GENERIC_9x6, id, playerInv, originalItems, target, viewer),
+                MenuType.GENERIC_9x6, id, playerInv, originalItems, target, viewer, expData),
             Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.curios.view.title", target.getName()))
                 .withStyle(net.minecraft.ChatFormatting.LIGHT_PURPLE)
         );
@@ -2180,7 +2270,8 @@ public class InventoryCommand {
     private static void reopenMainPreview(ServerPlayer viewer,
                                           PlayerResolver.ResolvedPlayer target,
                                           java.util.Map<Integer, ItemStack> originalItems,
-                                          ServerPlayer originalViewer) {
+                                          ServerPlayer originalViewer,
+                                          com.pocky.invbackups.data.ExperienceData expData) {
         Container chestContainer = new SimpleContainer(54);
         
         originalItems.forEach((inventoryIndex, itemStack) -> {
@@ -2193,7 +2284,7 @@ public class InventoryCommand {
         MenuProvider mainProvider = new SimpleMenuProvider(
             (id, playerInv, playerEntity) -> new ChestCopyableMenu(
                 MenuType.GENERIC_9x6, id, playerInv, chestContainer, 6,
-                originalItems, target, viewer),
+                originalItems, target, viewer, expData),
             Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.preview.title", target.getName(), ""))
                 .withStyle(net.minecraft.ChatFormatting.GOLD)
         );

@@ -122,5 +122,11 @@
   "invbackups.curios.info.items": "보유 아이템: %s개",
   "invbackups.curios.info.drag": "아이템을 드래그하여 복사하세요",
   "invbackups.curios.info.edit": "아이템을 편집할 수 있습니다",
-  "invbackups.success.curios_updated": "%s의 Curios가 업데이트되었습니다"
+  "invbackups.success.curios_updated": "%s의 Curios가 업데이트되었습니다",
+
+  "invbackups.success.experience_restored": "경험치가 복원되었습니다: %s",
+  "invbackups.gui.experience": "경험치",
+  "invbackups.gui.experience.level": "레벨: %s",
+  "invbackups.gui.experience.progress": "진행도: %s%%",
+  "invbackups.gui.experience.total": "총 경험치: %s"
 }

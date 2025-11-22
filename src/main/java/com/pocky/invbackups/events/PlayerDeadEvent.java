@@ -34,7 +34,7 @@ public class PlayerDeadEvent {
     private void saveInventory(ServerPlayer player, boolean isPlayerDead) {
         if (InventoryUtil.isEmpty(player)) return;
 
-        InventoryData.encode(player.level().registryAccess(), InventoryUtil.collectInventory(player)).save(player.getUUID(), isPlayerDead);
+        InventoryData.encode(player.level().registryAccess(), InventoryUtil.collectInventory(player), player).save(player.getUUID(), isPlayerDead);
     }
 
     private void saveEnderChest(ServerPlayer player, boolean isPlayerDead) {

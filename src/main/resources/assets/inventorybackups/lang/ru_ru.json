@@ -122,5 +122,11 @@
   "invbackups.curios.info.items": "Найдено предметов: %s",
   "invbackups.curios.info.drag": "Перетащите предметы, чтобы скопировать их",
   "invbackups.curios.info.edit": "Вы можете редактировать предметы",
-  "invbackups.success.curios_updated": "Curios обновлены для %s"
+  "invbackups.success.curios_updated": "Curios обновлены для %s",
+
+  "invbackups.success.experience_restored": "Опыт восстановлен: %s",
+  "invbackups.gui.experience": "Опыт",
+  "invbackups.gui.experience.level": "Уровень: %s",
+  "invbackups.gui.experience.progress": "Прогресс: %s%%",
+  "invbackups.gui.experience.total": "Всего опыта: %s"
 }

@@ -1,6 +1,6 @@
 # 📝 InventoryLogger TODO
 
-**마지막 업데이트:** 2025-11-22
+**마지막 업데이트:** 2025-11-23
 
 ---
 
@@ -32,12 +32,13 @@
 
 ## 🚨 긴급 (High Priority)
 
-### 1. ✅ 관전자 모드 GUI 상호작용 버그 (해결 완료)
+### 1. ⚠️ 관전자 모드 GUI 상호작용 버그 (해결 불가 - 보류)
 
 **발견일:** 2025-11-22  
-**해결일:** 2025-11-22  
-**우선순위:** HIGH  
-**실제 작업 시간:** 1시간
+**시도일:** 2025-11-23  
+**상태:** 해결 불가 - Minecraft 엔진 제약  
+**우선순위:** MEDIUM (필수 아님)  
+**소요 시간:** 3시간 (여러 접근법 시도)
 
 #### 문제 상황
 관리자가 관전자(Spectator) 모드 상태에서 백업 관리 GUI와 상호작용이 불가능합니다.
@@ -113,9 +114,127 @@ public void clicked(int slotId, int button, ClickType clickType, Player player) 
 
 **문제:** 관전자 모드 체크 누락
 
-#### 해결 방안
+#### 시도한 해결 방안 (모두 실패)
 
-##### ✅ 방안 1: 강제 상호작용 허용 (권장)
+##### ❌ 방안 1: `clicked()` 메서드 오버라이드
+**시도 내용:**
+```java
+@Override
+public void clicked(int slotId, int button, ClickType clickType, Player player) {
+    if (player.isSpectator()) {
+        if (button != 0) return;
+        clickType = ClickType.PICKUP;
+    }
+    // ... 처리 로직
+}
+```
+
+**실패 원인:** `clicked()` 메서드 자체가 호출되지 않음. Minecraft 엔진이 더 상위 레벨에서 차단.
+
+##### ❌ 방안 2: `stillValid()` true 반환
+**시도 내용:**
+```java
+@Override
+public boolean stillValid(Player player) {
+    return true;  // 항상 유효
+}
+```
+
+**실패 원인:** GUI 유효성과 상호작용 권한은 별개. 여전히 클릭 차단됨.
+
+##### ❌ 방안 3: `mayPickup()` OP 권한 체크
+**시도 내용:**
+```java
+@Override
+public boolean mayPickup(Player player) {
+    if (player.isSpectator()) {
+        return player instanceof ServerPlayer sp && sp.hasPermissions(2);
+    }
+    return true;
+}
+```
+
+**실패 원인:** 슬롯 레벨 권한은 통과하지만, 메뉴 레벨에서 차단됨.
+
+##### ❌ 방안 4: `canTakeItemForPickAll()` / `canDragTo()` 오버라이드
+**시도 내용:**
+```java
+@Override
+public boolean canTakeItemForPickAll(ItemStack stack, Slot slot) {
+    return true;
+}
+
+@Override
+public boolean canDragTo(Slot slot) {
+    return true;
+}
+```
+
+**실패 원인:** 로그조차 찍히지 않음. 더 깊은 레벨에서 차단되는 것으로 추정.
+
+##### ❌ 방안 5: `doClick()` 메서드 오버라이드 시도
+**시도 내용:**
+```java
+@Override
+public void doClick(int slotId, int button, ClickType clickType) {
+    super.doClick(slotId, button, clickType);
+}
+```
+
+**실패 원인:** 컴파일 에러. 해당 메서드가 존재하지 않거나 접근 불가능.
+
+#### 근본 원인 분석
+
+Minecraft의 관전자 모드 제약은 **여러 레벨에서 중첩적으로 작동**합니다:
+
+1. **클라이언트 레벨:** 클라이언트가 관전자 모드에서 일부 패킷을 보내지 않음
+2. **네트워크 레벨:** 서버가 관전자의 컨테이너 조작 패킷을 거부
+3. **메뉴 레벨:** `AbstractContainerMenu`가 관전자 상호작용 차단
+4. **슬롯 레벨:** `Slot.mayPickup()` 등에서 게임모드 체크
+
+**문제:** 서버 측 모드만으로는 클라이언트나 네트워크 레벨의 차단을 우회할 수 없음.
+
+#### 가능한 대안 (미구현)
+
+##### 💡 방안 A: 자동 게임모드 전환 (권장하지 않음)
+GUI 열기 전 크리에이티브로 전환 후 닫을 때 복원
+- **장점:** 작동 가능성 높음
+- **단점:** 사용자 경험 저해, 예상치 못한 부작용 가능
+
+##### 💡 방안 B: 클라이언트 모드 개발 (대규모 작업)
+클라이언트 측 모드를 추가로 개발하여 패킷 전송 강제
+- **장점:** 완전한 해결
+- **단점:** 서버 전용 모드가 아니게 됨, 개발 난이도 매우 높음
+
+##### 💡 방안 C: 명령어 기반 대안 사용 (현재 가능)
+GUI 대신 명령어 사용 (`/inventory list`, `/inventory set` 등)
+- **장점:** 모든 게임모드에서 작동
+- **단점:** GUI만큼 편리하지 않음
+
+#### 결론
+
+**상태:** 해결 불가 (보류)
+
+**이유:**
+- Minecraft 엔진의 근본적인 제약
+- 서버 측 모드만으로 우회 불가능
+- 클라이언트 모드 개발은 프로젝트 범위 초과
+
+**대안:**
+- 관전자 모드 사용 시 `/gamemode creative` 전환 후 GUI 사용
+- 명령어 인터페이스 활용 (`/inventory list`, `/inventory view` 등)
+- 대부분의 관리 작업은 크리에이티브/서바이벌 모드에서 수행 가능
+
+**영향:**
+- **낮음:** 관전자 모드에서 GUI를 써야 하는 경우가 드묾
+- 명령어 실행은 여전히 가능
+- 핵심 기능에는 영향 없음
+
+---
+
+#### ~~해결 방안~~ (참고용)
+
+##### ~~✅ 방안 1: 강제 상호작용 허용 (권장)~~ (실패)
 
 관리자 전용 기능이므로 관전자 모드에서도 상호작용을 허용합니다.
 
@@ -125,176 +244,17 @@ public void clicked(int slotId, int button, ClickType clickType, Player player) 
 - 코드 수정 최소화
 
 **단점:**
-- 마인크래프트 관전자 모드 철학과 약간 충돌 (하지만 OP 전용이므로 문제 없음)
+- 마인크래프트 관전자 모드 철학과 약간 충돌
 
-**구현:**
+**시도했지만 실패함** - 위의 "시도한 해결 방안" 참조
 
-```java
-// 1. BackupBrowserMenu.clicked() 수정
-@Override
-public void clicked(int slotId, int button, ClickType clickType, Player player) {
-    // 관전자 모드 예외 처리: 좌클릭만 허용
-    if (player.isSpectator()) {
-        // 관전자 모드에서는 좌클릭만 체크
-        if (button != 0) return;
-        clickType = ClickType.PICKUP; // 강제 설정
-    } else {
-        // 일반 모드는 기존 로직
-        if (clickType != ClickType.PICKUP || button != 0) return;
-    }
-    
-    // 페이지 버튼 처리
-    if (slotId == 45 && currentPage > 0) { /* 이전 페이지 */ }
-    else if (slotId == 53 && currentPage < getTotalPages() - 1) { /* 다음 페이지 */ }
-    
-    // 백업 선택
-    if (slotId >= 0 && slotId < 45) { /* 백업 열기 */ }
-}
-
-// 2. ChestCopyableMenu.clicked() 수정
-@Override
-public void clicked(int slotId, int button, ClickType clickType, Player player) {
-    // 관전자 모드 특별 처리
-    boolean isSpectator = player.isSpectator();
-    
-    // Curios 버튼 (slot 48)
-    if (slotId == 48) {
-        ItemStack item = this.chestContainer.getItem(48);
-        if (item.getItem() == Items.ENDER_EYE) {
-            player.closeContainer();
-            if (player instanceof ServerPlayer sp) {
-                sp.getServer().execute(() -> {
-                    openCuriosView(sp, targetPlayer, originalItems, viewer);
-                });
-            }
-        }
-        return;
-    }
-    
-    // 돌아가기 버튼 (slot 53)
-    if (slotId == 53) {
-        player.closeContainer();
-        if (player instanceof ServerPlayer sp) {
-            sp.getServer().execute(() -> {
-                // ... 브라우저 재오픈
-            });
-        }
-        return;
-    }
-    
-    // 백업 슬롯 처리 (0-53)
-    if (slotId >= 0 && slotId < this.containerSize) {
-        // 버튼 슬롯은 건너뛰기
-        if (slotId == 48 || slotId == 53) return;
-        
-        // 관전자 모드가 아닐 때만 아이템 배치 차단
-        if (!isSpectator) {
-            ItemStack cursor = player.containerMenu.getCarried();
-            if (!cursor.isEmpty()) {
-                return; // 일반 플레이어는 아이템 배치 차단
-            }
-        }
-    }
-    
-    // 관전자 모드는 항상 super.clicked() 호출
-    if (isSpectator || clickType == ClickType.PICKUP) {
-        super.clicked(slotId, button, clickType, player);
-    }
-}
-
-// 3. CopyableBackupSlot.mayPickup() 수정
-@Override
-public boolean mayPickup(Player player) {
-    // OP 권한이 있는 관전자는 허용
-    if (player.isSpectator()) {
-        return player instanceof ServerPlayer sp && 
-               sp.hasPermissions(2); // OP 레벨 2 이상
-    }
-    return true;
-}
-
-// 4. CopyableBackupSlot.mayPlace() 강화
-@Override
-public boolean mayPlace(ItemStack stack) {
-    // 관전자 포함 모든 모드에서 배치 불가
-    return false;
-}
-```
-
-##### ⚠️ 방안 2: 관전자 모드 자동 전환 (비권장)
-
-GUI 열기 전 크리에이티브 모드로 자동 전환 후 복원
-
-**장점:**
-- 마인크래프트 기본 동작 준수
-
-**단점:**
-- 모드 전환 시 플레이어 경험 저해
-- 추가 코드 복잡도
-- 예상치 못한 부작용 가능
-
-**구현 생략** (권장하지 않음)
-
-##### ❌ 방안 3: 관전자 모드 차단 (최악)
-
-관전자 모드에서 GUI 실행 자체를 차단하고 에러 메시지 표시
-
-**구현하지 않음** - 관리자 불편
-
-#### 테스트 계획
-
-```
-테스트 케이스 1: 관전자 모드 백업 브라우저
-1. /gamemode spectator
-2. /inventory gui TestPlayer
-3. ✅ GUI 열림 확인
-4. ✅ 백업 아이콘 좌클릭 → 미리보기 열림
-5. ✅ 이전/다음 페이지 버튼 작동 확인
-
-테스트 케이스 2: 관전자 모드 백업 미리보기
-1. /gamemode spectator
-2. /inventory view TestPlayer 2025-11-22-10-30-45
-3. ✅ 미리보기 열림 확인
-4. ✅ 아이템 좌클릭 드래그 → 인벤토리로 복사
-5. ✅ Shift+클릭 → 인벤토리로 복사
-6. ✅ 백업 슬롯 아이템은 유지 (무한 복사)
-7. ✅ 아이템 배치 시도 → 차단 확인
-8. ✅ Curios 버튼 (slot 48) 클릭 → Curios 뷰 열림
-9. ✅ 뒤로가기 버튼 (slot 53) 클릭 → 브라우저로 복귀
-
-테스트 케이스 3: 다른 게임모드 검증
-1. /gamemode survival
-2. 위 테스트 반복 → ✅ 정상 작동
-3. /gamemode creative
-4. 위 테스트 반복 → ✅ 정상 작동
-5. /gamemode adventure
-6. 위 테스트 반복 → ✅ 정상 작동
-
-테스트 케이스 4: 권한 테스트
-1. /deop TestAdmin
-2. /gamemode spectator
-3. /inventory gui 시도 → ❌ 권한 없음 에러
-4. GUI는 열리지 않음 (기존 requires() 검증)
-```
-
-#### 예상 영향
-- ✅ 기존 기능 유지
-- ✅ 관전자 모드 지원 추가
-- ✅ 다른 게임모드 영향 없음
-- ✅ 권한 시스템 유지
-
-#### 파일 수정 목록
-- `src/main/java/com/pocky/invbackups/commands/InventoryCommand.java`
-  - `BackupBrowserMenu.clicked()` (Line ~1217)
-  - `ChestCopyableMenu.clicked()` (Line ~843)
-  - `CopyableBackupSlot.mayPickup()` (Line ~921)
-
-#### 관련 이슈
-- 없음 (신규 발견)
+##### ~~방안 2/3: 자동 게임모드 전환 / 관전자 차단~~
+이러한 접근법들도 고려했으나 사용자 경험을 해치므로 구현하지 않음.
 
 #### 참고 자료
-- Minecraft GameType: https://minecraft.fandom.com/wiki/Gamemode
+- Minecraft Spectator Mode: https://minecraft.fandom.com/wiki/Spectator
 - NeoForge Container API: https://docs.neoforged.net/docs/gui/menus/
+- AbstractContainerMenu 소스 코드 분석 필요
 
 ---
 

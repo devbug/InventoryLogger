@@ -128,5 +128,6 @@
   "invbackups.gui.experience": "Experience",
   "invbackups.gui.experience.level": "Level: %s",
   "invbackups.gui.experience.progress": "Progress: %s%%",
-  "invbackups.gui.experience.total": "Total XP: %s"
+  "invbackups.gui.experience.total": "Total XP: %s",
+  "invbackups.gui.experience.live": "Live Data"
 }

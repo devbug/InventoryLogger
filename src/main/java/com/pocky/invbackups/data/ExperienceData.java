@@ -108,6 +108,41 @@ public class ExperienceData implements Serializable {
         return String.format("Lv.%d (%d%%)", experienceLevel, progressPercent);
     }
     
+    /**
+     * Calculate total experience points from level and progress
+     * This is a rough calculation as Minecraft's exact formula is complex
+     * 
+     * @param level Experience level
+     * @param progress Progress towards next level (0.0 to 1.0)
+     * @return Approximate total experience points
+     */
+    public static int calculateTotalExperience(int level, float progress) {
+        int total = 0;
+        
+        // Calculate XP for completed levels
+        if (level <= 16) {
+            total = level * level + 6 * level;
+        } else if (level <= 31) {
+            total = (int) (2.5 * level * level - 40.5 * level + 360);
+        } else {
+            total = (int) (4.5 * level * level - 162.5 * level + 2220);
+        }
+        
+        // Add XP for current progress towards next level
+        int xpForNextLevel;
+        if (level < 16) {
+            xpForNextLevel = 2 * level + 7;
+        } else if (level < 31) {
+            xpForNextLevel = 5 * level - 38;
+        } else {
+            xpForNextLevel = 9 * level - 158;
+        }
+        
+        total += (int) (xpForNextLevel * progress);
+        
+        return total;
+    }
+    
     // Getters and Setters
     
     public int getExperienceLevel() {

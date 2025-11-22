@@ -729,6 +729,33 @@ public class InventoryCommand {
                 container.setItem(48, curiosButton);
             }
             
+            // Add experience info in slot 52 (read-only, current player data)
+            ItemStack expInfo = new ItemStack(Items.EXPERIENCE_BOTTLE);
+            expInfo.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME,
+                Component.literal("💫 " + com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.gui.experience"))
+                    .withStyle(net.minecraft.ChatFormatting.AQUA));
+            
+            List<Component> expLore = new ArrayList<>();
+            expLore.add(Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.gui.experience.level", 
+                    String.valueOf(targetPlayer.experienceLevel)))
+                .withStyle(net.minecraft.ChatFormatting.GREEN));
+            expLore.add(Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.gui.experience.progress",
+                    String.valueOf((int)(targetPlayer.experienceProgress * 100))))
+                .withStyle(net.minecraft.ChatFormatting.YELLOW));
+            
+            // Calculate total experience
+            int totalExp = com.pocky.invbackups.data.ExperienceData.calculateTotalExperience(
+                targetPlayer.experienceLevel, targetPlayer.experienceProgress);
+            expLore.add(Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.gui.experience.total",
+                    String.valueOf(totalExp)))
+                .withStyle(net.minecraft.ChatFormatting.GRAY));
+            expLore.add(Component.empty());
+            expLore.add(Component.literal("⚡ " + com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.gui.experience.live"))
+                .withStyle(net.minecraft.ChatFormatting.GOLD, net.minecraft.ChatFormatting.ITALIC));
+            
+            expInfo.set(net.minecraft.core.component.DataComponents.LORE, new net.minecraft.world.item.component.ItemLore(expLore));
+            container.setItem(52, expInfo);
+            
             // Replace armor and button slots with validation slots
             replaceArmorSlots();
         }
@@ -784,8 +811,8 @@ public class InventoryCommand {
                 buttonSlot.y
             ));
             
-            // Replace remaining empty slots (49-53) with read-only slots
-            for (int i = 49; i <= 53; i++) {
+            // Replace remaining empty slots (49-51) with read-only slots
+            for (int i = 49; i <= 51; i++) {
                 Slot oldSlot = this.slots.get(i);
                 this.slots.set(i, new ReadOnlySlot(
                     this.chestContainer,
@@ -794,6 +821,24 @@ public class InventoryCommand {
                     oldSlot.y
                 ));
             }
+            
+            // Replace experience info slot (52) with read-only slot
+            Slot expSlot = this.slots.get(52);
+            this.slots.set(52, new ReadOnlySlot(
+                this.chestContainer,
+                52,
+                expSlot.x,
+                expSlot.y
+            ));
+            
+            // Replace slot 53 with read-only slot
+            Slot slot53 = this.slots.get(53);
+            this.slots.set(53, new ReadOnlySlot(
+                this.chestContainer,
+                53,
+                slot53.x,
+                slot53.y
+            ));
         }
 
         @Override
@@ -812,8 +857,13 @@ public class InventoryCommand {
                 return;
             }
             
-            // Block placing items on button slot
-            if (slotId == 48) {
+            // Handle experience info button click (slot 52) - read-only
+            if (slotId == 52) {
+                return; // Block all interaction with experience info
+            }
+            
+            // Block placing items on button slots
+            if (slotId == 48 || slotId == 52) {
                 return;
             }
             

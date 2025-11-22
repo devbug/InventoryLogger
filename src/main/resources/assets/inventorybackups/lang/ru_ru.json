@@ -128,5 +128,6 @@
   "invbackups.gui.experience": "Опыт",
   "invbackups.gui.experience.level": "Уровень: %s",
   "invbackups.gui.experience.progress": "Прогресс: %s%%",
-  "invbackups.gui.experience.total": "Всего опыта: %s"
+  "invbackups.gui.experience.total": "Всего опыта: %s",
+  "invbackups.gui.experience.live": "Текущие данные"
 }

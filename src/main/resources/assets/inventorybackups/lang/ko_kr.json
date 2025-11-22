@@ -128,5 +128,6 @@
   "invbackups.gui.experience": "경험치",
   "invbackups.gui.experience.level": "레벨: %s",
   "invbackups.gui.experience.progress": "진행도: %s%%",
-  "invbackups.gui.experience.total": "총 경험치: %s"
+  "invbackups.gui.experience.total": "총 경험치: %s",
+  "invbackups.gui.experience.live": "실시간 데이터"
 }

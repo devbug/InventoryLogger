@@ -841,9 +841,6 @@ public class InventoryCommand {
         
         @Override
         public void clicked(int slotId, int button, ClickType clickType, Player player) {
-            // Spectator mode detection for special handling
-            boolean isSpectator = player.isSpectator();
-            
             // Handle Curios view button click (slot 48)
             if (slotId == 48) {
                 ItemStack item = this.chestContainer.getItem(48);
@@ -888,19 +885,14 @@ public class InventoryCommand {
                     return;
                 }
                 
-                // Only block item placement for non-spectators
-                // Spectators should still be blocked from placing items (backup protection)
                 ItemStack cursor = player.containerMenu.getCarried();
-                if (!cursor.isEmpty() && !isSpectator) {
+                if (!cursor.isEmpty()) {
                     // Player is trying to place an item, block it
                     return;
                 }
             }
             
-            // Allow spectator mode to interact with backup items
-            if (isSpectator || clickType == ClickType.PICKUP) {
-                super.clicked(slotId, button, clickType, player);
-            }
+            super.clicked(slotId, button, clickType, player);
         }
 
         @Override
@@ -927,10 +919,6 @@ public class InventoryCommand {
 
             @Override
             public boolean mayPickup(Player player) {
-                // Allow spectators with OP permission to pick up items
-                if (player.isSpectator()) {
-                    return player instanceof ServerPlayer sp && sp.hasPermissions(2);
-                }
                 return true;  // ✅ Can pick up items!
             }
 
@@ -1227,19 +1215,9 @@ public class InventoryCommand {
 
         @Override
         public void clicked(int slotId, int button, net.minecraft.world.inventory.ClickType clickType, Player player) {
-            // Spectator mode exception: allow interaction for OP players
-            if (player.isSpectator()) {
-                // Only allow left click for spectators
-                if (button != 0) {
-                    return;
-                }
-                // Normalize click type for spectator mode
-                clickType = net.minecraft.world.inventory.ClickType.PICKUP;
-            } else {
-                // Only handle left clicks for non-spectators
-                if (clickType != net.minecraft.world.inventory.ClickType.PICKUP || button != 0) {
-                    return; // Block all other interactions
-                }
+            // Only handle left clicks
+            if (clickType != net.minecraft.world.inventory.ClickType.PICKUP || button != 0) {
+                return; // Block all other interactions
             }
             
             // Navigation buttons

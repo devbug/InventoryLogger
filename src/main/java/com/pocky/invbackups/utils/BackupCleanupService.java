@@ -15,21 +15,75 @@ public class BackupCleanupService {
 
     private static final Path INVENTORY_BACKUP_DIR = Path.of("InventoryLog/inventory/");
     private static final Path ENDERCHEST_BACKUP_DIR = Path.of("InventoryLog/enderchest/");
+    
+    private static boolean cleanupEnabled = false;
+    private static boolean initializationFailed = false;
+
+    /**
+     * Initialize and validate cleanup service
+     * Called once during server startup
+     * @throws RuntimeException if initialization fails
+     */
+    public static void initialize() {
+        try {
+            // Validate configuration access
+            int retentionDays = InventoryConfig.general.retentionDays.get();
+            
+            if (retentionDays < 1) {
+                throw new IllegalStateException("retentionDays must be at least 1, got: " + retentionDays);
+            }
+            
+            // Validate directories can be created
+            if (!INVENTORY_BACKUP_DIR.toFile().exists()) {
+                INVENTORY_BACKUP_DIR.toFile().mkdirs();
+            }
+            if (!ENDERCHEST_BACKUP_DIR.toFile().exists()) {
+                ENDERCHEST_BACKUP_DIR.toFile().mkdirs();
+            }
+            
+            cleanupEnabled = true;
+            InventoryBackupsMod.LOGGER.info("Backup cleanup service initialized successfully (retention: {} days)", retentionDays);
+            
+        } catch (Exception e) {
+            initializationFailed = true;
+            InventoryBackupsMod.LOGGER.error("CRITICAL: Failed to initialize backup cleanup service!", e);
+            throw new RuntimeException("Backup cleanup initialization failed - server cannot start safely", e);
+        }
+    }
 
     /**
      * Deletes backup files older than the configured retention period
+     * Safe to call periodically - will not crash server if cleanup fails
      */
     public static void cleanupOldBackups() {
-        int retentionDays = InventoryConfig.general.retentionDays.get();
-        Instant cutoffTime = Instant.now().minus(retentionDays, ChronoUnit.DAYS);
+        // Skip if initialization failed
+        if (initializationFailed) {
+            InventoryBackupsMod.LOGGER.warn("Skipping backup cleanup - service initialization failed");
+            return;
+        }
+        
+        // Skip if not enabled
+        if (!cleanupEnabled) {
+            InventoryBackupsMod.LOGGER.warn("Skipping backup cleanup - service not initialized. Call initialize() first.");
+            return;
+        }
+        
+        try {
+            int retentionDays = InventoryConfig.general.retentionDays.get();
+            Instant cutoffTime = Instant.now().minus(retentionDays, ChronoUnit.DAYS);
 
-        int inventoryDeleted = cleanupDirectory(INVENTORY_BACKUP_DIR, cutoffTime);
-        int enderChestDeleted = cleanupDirectory(ENDERCHEST_BACKUP_DIR, cutoffTime);
+            int inventoryDeleted = cleanupDirectory(INVENTORY_BACKUP_DIR, cutoffTime);
+            int enderChestDeleted = cleanupDirectory(ENDERCHEST_BACKUP_DIR, cutoffTime);
 
-        int totalDeleted = inventoryDeleted + enderChestDeleted;
-        if (totalDeleted > 0) {
-            InventoryBackupsMod.LOGGER.info("Backup cleanup completed: deleted " + inventoryDeleted +
-                " inventory backup(s) and " + enderChestDeleted + " ender chest backup(s)");
+            int totalDeleted = inventoryDeleted + enderChestDeleted;
+            if (totalDeleted > 0) {
+                InventoryBackupsMod.LOGGER.info("Backup cleanup completed: deleted " + inventoryDeleted +
+                    " inventory backup(s) and " + enderChestDeleted + " ender chest backup(s)");
+            }
+        } catch (Exception e) {
+            // Runtime cleanup failure should not crash server
+            // Players' game experience is more important than backup cleanup
+            InventoryBackupsMod.LOGGER.error("Backup cleanup failed (non-critical)", e);
         }
     }
 
@@ -83,15 +137,5 @@ public class BackupCleanupService {
         }
 
         return deletedCount;
-    }
-
-    /**
-     * Schedules periodic cleanup task
-     * Should be called on server start
-     */
-    public static void scheduleCleanup() {
-        // Run cleanup every hour (72000 ticks = 1 hour in Minecraft)
-        InventoryBackupsMod.LOGGER.info("Backup cleanup service initialized (retention: " +
-            InventoryConfig.general.retentionDays.get() + " days)");
     }
 }

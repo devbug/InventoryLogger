@@ -38,12 +38,19 @@ public class InventoryBackupsMod {
         NeoForge.EVENT_BUS.register(new com.pocky.invbackups.events.ContainerCloseEvent());
 
         NeoForge.EVENT_BUS.register(this);
+        
+        // Note: BackupCleanupService will be initialized in onServerStarted
+        // after config is fully loaded, before first cleanup runs (1 hour later)
+        
         LOGGER.info("InventoryBackups mod initialized successfully!");
     }
 
     @SubscribeEvent
     public void onServerStarted(ServerStartedEvent event) {
         LOGGER.info("Server started, loading configuration...");
+
+        // Initialize backup cleanup service (fail-fast if config is broken)
+        com.pocky.invbackups.utils.BackupCleanupService.initialize();
 
         // Inventory configuration
         PlayerDeadEvent.deadSaveEnabled = InventoryConfig.general.deadSaveEnabled.get();

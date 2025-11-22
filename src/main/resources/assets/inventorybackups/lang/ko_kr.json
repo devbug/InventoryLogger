@@ -129,5 +129,11 @@
   "invbackups.gui.experience.level": "레벨: %s",
   "invbackups.gui.experience.progress": "진행도: %s%%",
   "invbackups.gui.experience.total": "총 경험치: %s",
-  "invbackups.gui.experience.live": "실시간 데이터"
+  "invbackups.gui.experience.live": "실시간 데이터",
+  "invbackups.gui.experience.legacy": "(레거시 백업 - 경험치 데이터 없음)",
+
+  "invbackups.gui.button.back": "◄ 브라우저로 돌아가기",
+  "invbackups.gui.button.back.desc": "백업 브라우저로 돌아가기",
+  "invbackups.gui.button.back.preview": "메인 미리보기로 돌아가기",
+  "invbackups.gui.button.back.inventory": "메인 인벤토리로 돌아가기"
 }

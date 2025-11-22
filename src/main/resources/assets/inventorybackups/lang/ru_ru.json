@@ -129,5 +129,11 @@
   "invbackups.gui.experience.level": "Уровень: %s",
   "invbackups.gui.experience.progress": "Прогресс: %s%%",
   "invbackups.gui.experience.total": "Всего опыта: %s",
-  "invbackups.gui.experience.live": "Текущие данные"
+  "invbackups.gui.experience.live": "Текущие данные",
+  "invbackups.gui.experience.legacy": "(Старая резервная копия - нет данных об опыте)",
+
+  "invbackups.gui.button.back": "◄ Вернуться в браузер",
+  "invbackups.gui.button.back.desc": "Нажмите, чтобы вернуться в браузер резервных копий",
+  "invbackups.gui.button.back.preview": "Нажмите, чтобы вернуться к основному просмотру",
+  "invbackups.gui.button.back.inventory": "Нажмите, чтобы вернуться к основному инвентарю"
 }

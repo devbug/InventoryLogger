@@ -1138,7 +1138,7 @@ public class InventoryCommand {
             } else {
                 expLore.add(Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.gui.experience.level", "0"))
                     .withStyle(net.minecraft.ChatFormatting.GRAY));
-                expLore.add(Component.literal("(Legacy backup - no XP data)")
+                expLore.add(Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.gui.experience.legacy"))
                     .withStyle(net.minecraft.ChatFormatting.DARK_GRAY, net.minecraft.ChatFormatting.ITALIC));
             }
             expInfo.set(net.minecraft.core.component.DataComponents.LORE, new net.minecraft.world.item.component.ItemLore(expLore));
@@ -1147,10 +1147,10 @@ public class InventoryCommand {
             // Add back button in last slot (53)
             ItemStack backButton = new ItemStack(Items.BARRIER);
             backButton.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME,
-                Component.literal("◄ Back to Browser")
+                Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.gui.button.back"))
                     .withStyle(net.minecraft.ChatFormatting.RED));
             List<Component> lore = new ArrayList<>();
-            lore.add(Component.literal("Click to return to backup browser")
+            lore.add(Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.gui.button.back.desc"))
                 .withStyle(net.minecraft.ChatFormatting.GRAY));
             backButton.set(net.minecraft.core.component.DataComponents.LORE,
                 new net.minecraft.world.item.component.ItemLore(lore));
@@ -1838,7 +1838,7 @@ public class InventoryCommand {
                 Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.curios.button.back"))
                     .withStyle(net.minecraft.ChatFormatting.RED));
             List<Component> backLore = new ArrayList<>();
-            backLore.add(Component.literal("Click to return to main preview")
+            backLore.add(Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.gui.button.back.preview"))
                 .withStyle(net.minecraft.ChatFormatting.GRAY));
             backButton.set(net.minecraft.core.component.DataComponents.LORE,
                 new net.minecraft.world.item.component.ItemLore(backLore));
@@ -2080,7 +2080,7 @@ public class InventoryCommand {
                 Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.curios.button.back"))
                     .withStyle(net.minecraft.ChatFormatting.RED));
             List<Component> backLore = new ArrayList<>();
-            backLore.add(Component.literal("Click to return to main inventory")
+            backLore.add(Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.gui.button.back.inventory"))
                 .withStyle(net.minecraft.ChatFormatting.GRAY));
             backButton.set(net.minecraft.core.component.DataComponents.LORE,
                 new net.minecraft.world.item.component.ItemLore(backLore));

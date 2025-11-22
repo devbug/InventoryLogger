@@ -129,5 +129,11 @@
   "invbackups.gui.experience.level": "Level: %s",
   "invbackups.gui.experience.progress": "Progress: %s%%",
   "invbackups.gui.experience.total": "Total XP: %s",
-  "invbackups.gui.experience.live": "Live Data"
+  "invbackups.gui.experience.live": "Live Data",
+  "invbackups.gui.experience.legacy": "(Legacy backup - no XP data)",
+
+  "invbackups.gui.button.back": "◄ Back to Browser",
+  "invbackups.gui.button.back.desc": "Click to return to backup browser",
+  "invbackups.gui.button.back.preview": "Click to return to main preview",
+  "invbackups.gui.button.back.inventory": "Click to return to main inventory"
 }

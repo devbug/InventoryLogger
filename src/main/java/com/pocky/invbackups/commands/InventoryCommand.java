@@ -56,20 +56,13 @@ public class InventoryCommand {
     private static final Path BACKUP_DIR = Path.of("InventoryLog");
     
     // Suggestion providers for tab completion
+    // Suggestion provider for player names (online + players with backups)
     private static final SuggestionProvider<CommandSourceStack> SUGGEST_PLAYERS = (context, builder) -> {
         return suggestPlayers(context, builder);
     };
     
-    private static final SuggestionProvider<CommandSourceStack> SUGGEST_INVENTORY_BACKUPS = (context, builder) -> {
-        return suggestInventoryBackups(context, builder);
-    };
-    
-    private static final SuggestionProvider<CommandSourceStack> SUGGEST_ENDERCHEST_BACKUPS = (context, builder) -> {
-        return suggestEnderChestBackups(context, builder);
-    };
-    
-    // Maximum number of suggestions to show (to prevent UI lag with many backups)
-    private static final int MAX_BACKUP_SUGGESTIONS = 50;
+    // Note: Backup file autocomplete removed due to performance concerns with many backups
+    // Will be reimplemented after SQL database migration for efficient indexed queries
 
     public static void register(CommandDispatcher<CommandSourceStack> commandDispatcher) {
 
@@ -96,7 +89,6 @@ public class InventoryCommand {
                         .then(Commands.argument("target", StringArgumentType.string())
                                 .suggests(SUGGEST_PLAYERS)
                                 .then(Commands.argument("date", StringArgumentType.string())
-                                        .suggests(SUGGEST_INVENTORY_BACKUPS)
                                         .executes(context -> command
                                                 .setInventory(context.getSource(),
                                                         StringArgumentType.getString(context, "target"),
@@ -107,7 +99,6 @@ public class InventoryCommand {
                         .then(Commands.argument("target", StringArgumentType.string())
                                 .suggests(SUGGEST_PLAYERS)
                                 .then(Commands.argument("date", StringArgumentType.string())
-                                        .suggests(SUGGEST_INVENTORY_BACKUPS)
                                         .executes(context -> command
                                                 .view(context.getSource(),
                                                         StringArgumentType.getString(context, "target"),
@@ -118,7 +109,6 @@ public class InventoryCommand {
                         .then(Commands.argument("target", StringArgumentType.string())
                                 .suggests(SUGGEST_PLAYERS)
                                 .then(Commands.argument("date", StringArgumentType.string())
-                                        .suggests(SUGGEST_INVENTORY_BACKUPS)
                                         .executes(context -> command
                                                 .copyInventory(context.getSource(),
                                                         StringArgumentType.getString(context, "target"),
@@ -175,7 +165,6 @@ public class InventoryCommand {
                         .then(Commands.argument("target", StringArgumentType.string())
                                 .suggests(SUGGEST_PLAYERS)
                                 .then(Commands.argument("date", StringArgumentType.string())
-                                        .suggests(SUGGEST_ENDERCHEST_BACKUPS)
                                         .executes(context -> command
                                                 .setEnderChest(context.getSource(),
                                                         StringArgumentType.getString(context, "target"),
@@ -186,7 +175,6 @@ public class InventoryCommand {
                         .then(Commands.argument("target", StringArgumentType.string())
                                 .suggests(SUGGEST_PLAYERS)
                                 .then(Commands.argument("date", StringArgumentType.string())
-                                        .suggests(SUGGEST_ENDERCHEST_BACKUPS)
                                         .executes(context -> command
                                                 .viewEnderChest(context.getSource(),
                                                         StringArgumentType.getString(context, "target"),
@@ -197,7 +185,6 @@ public class InventoryCommand {
                         .then(Commands.argument("target", StringArgumentType.string())
                                 .suggests(SUGGEST_PLAYERS)
                                 .then(Commands.argument("date", StringArgumentType.string())
-                                        .suggests(SUGGEST_ENDERCHEST_BACKUPS)
                                         .executes(context -> command
                                                 .copyEnderChest(context.getSource(),
                                                         StringArgumentType.getString(context, "target"),
@@ -1882,94 +1869,6 @@ public class InventoryCommand {
                 .filter(name -> name.toLowerCase().startsWith(input))
                 .sorted()
                 .forEach(builder::suggest);
-        
-        return builder.buildFuture();
-    }
-    
-    /**
-     * Suggest inventory backup files for the selected player
-     * Limited to MAX_BACKUP_SUGGESTIONS to prevent UI lag
-     */
-    private static CompletableFuture<Suggestions> suggestInventoryBackups(
-            CommandContext<CommandSourceStack> context,
-            SuggestionsBuilder builder) {
-        
-        try {
-            String targetName = context.getArgument("target", String.class);
-            Optional<PlayerResolver.ResolvedPlayer> resolved = 
-                PlayerResolver.resolvePlayer(context.getSource().getServer(), targetName);
-            
-            if (resolved.isPresent()) {
-                UUID uuid = resolved.get().getUuid();
-                Path playerBackupDir = BACKUP_DIR.resolve("inventory").resolve(uuid.toString());
-                
-                if (Files.exists(playerBackupDir) && Files.isDirectory(playerBackupDir)) {
-                    try (Stream<Path> backupFiles = Files.list(playerBackupDir)) {
-                        String input = builder.getRemaining().toLowerCase();
-                        
-                        // Stream directly to builder to avoid loading all backups into memory
-                        // Limit to MAX_BACKUP_SUGGESTIONS to prevent performance issues
-                        backupFiles
-                                .filter(Files::isRegularFile)
-                                .filter(p -> p.getFileName().toString().endsWith(".json"))
-                                .map(p -> {
-                                    String name = p.getFileName().toString();
-                                    return name.substring(0, name.length() - 5); // Remove .json
-                                })
-                                .sorted(Comparator.reverseOrder()) // Newest first
-                                .filter(name -> name.toLowerCase().startsWith(input))
-                                .limit(MAX_BACKUP_SUGGESTIONS)
-                                .forEach(builder::suggest);
-                    }
-                }
-            }
-        } catch (Exception e) {
-            // Error reading backups, return empty suggestions
-        }
-        
-        return builder.buildFuture();
-    }
-    
-    /**
-     * Suggest ender chest backup files for the selected player
-     * Limited to MAX_BACKUP_SUGGESTIONS to prevent UI lag
-     */
-    private static CompletableFuture<Suggestions> suggestEnderChestBackups(
-            CommandContext<CommandSourceStack> context,
-            SuggestionsBuilder builder) {
-        
-        try {
-            String targetName = context.getArgument("target", String.class);
-            Optional<PlayerResolver.ResolvedPlayer> resolved = 
-                PlayerResolver.resolvePlayer(context.getSource().getServer(), targetName);
-            
-            if (resolved.isPresent()) {
-                UUID uuid = resolved.get().getUuid();
-                Path playerBackupDir = BACKUP_DIR.resolve("enderchest").resolve(uuid.toString());
-                
-                if (Files.exists(playerBackupDir) && Files.isDirectory(playerBackupDir)) {
-                    try (Stream<Path> backupFiles = Files.list(playerBackupDir)) {
-                        String input = builder.getRemaining().toLowerCase();
-                        
-                        // Stream directly to builder to avoid loading all backups into memory
-                        // Limit to MAX_BACKUP_SUGGESTIONS to prevent performance issues
-                        backupFiles
-                                .filter(Files::isRegularFile)
-                                .filter(p -> p.getFileName().toString().endsWith(".json"))
-                                .map(p -> {
-                                    String name = p.getFileName().toString();
-                                    return name.substring(0, name.length() - 5); // Remove .json
-                                })
-                                .sorted(Comparator.reverseOrder()) // Newest first
-                                .filter(name -> name.toLowerCase().startsWith(input))
-                                .limit(MAX_BACKUP_SUGGESTIONS)
-                                .forEach(builder::suggest);
-                    }
-                }
-            }
-        } catch (Exception e) {
-            // Error reading backups, return empty suggestions
-        }
         
         return builder.buildFuture();
     }

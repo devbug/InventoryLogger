@@ -591,25 +591,27 @@ public class InventoryCommand {
      */
     private static class EnderChestEditableMenu extends ChestMenu {
         private final ServerPlayer targetPlayer;
+        private final Container chestContainer;
+        
+        // Real-time sync fields
+        private int tickCounter = 0;
+        private static final int SYNC_INTERVAL = 5; // 5 ticks = 0.25 seconds
 
         public EnderChestEditableMenu(MenuType<?> menuType, int containerId, Inventory playerInv,
                                      Container container, int rows, ServerPlayer targetPlayer) {
             super(menuType, containerId, playerInv, container, rows);
             this.targetPlayer = targetPlayer;
+            this.chestContainer = container;
         }
 
         @Override
         public void removed(Player player) {
             super.removed(player);
 
+            // Final sync when closing
+            syncToTarget();
+            
             if (targetPlayer != null && !targetPlayer.isRemoved()) {
-                SimpleContainer targetEnderChest = targetPlayer.getEnderChestInventory();
-
-                // Sync all items
-                for (int i = 0; i < 27; i++) {
-                    targetEnderChest.setItem(i, this.getContainer().getItem(i).copy());
-                }
-
                 ChatUI.showSuccess((ServerPlayer) player, Component.translatable("invbackups.success.enderchest_updated",
                         Component.literal(targetPlayer.getScoreboardName()).withStyle(net.minecraft.ChatFormatting.WHITE)).getString());
             }
@@ -618,6 +620,57 @@ public class InventoryCommand {
         @Override
         public boolean stillValid(Player player) {
             return targetPlayer != null && !targetPlayer.isRemoved();
+        }
+        
+        // ✅ Real-time synchronization
+        @Override
+        public void broadcastChanges() {
+            super.broadcastChanges();
+            
+            tickCounter++;
+            if (tickCounter >= SYNC_INTERVAL) {
+                tickCounter = 0;
+                syncToTarget();      // GUI → Target ender chest
+                syncFromTarget();    // Target ender chest → GUI
+            }
+        }
+        
+        /**
+         * Sync changes from GUI to target player's ender chest
+         */
+        private void syncToTarget() {
+            if (targetPlayer == null || targetPlayer.isRemoved()) return;
+            
+            SimpleContainer targetEnderChest = targetPlayer.getEnderChestInventory();
+            
+            // Sync all 27 slots
+            for (int i = 0; i < 27; i++) {
+                ItemStack guiStack = this.chestContainer.getItem(i);
+                ItemStack targetStack = targetEnderChest.getItem(i);
+                
+                if (!ItemStack.matches(guiStack, targetStack)) {
+                    targetEnderChest.setItem(i, guiStack.copy());
+                }
+            }
+        }
+        
+        /**
+         * Sync changes from target player's ender chest to GUI
+         */
+        private void syncFromTarget() {
+            if (targetPlayer == null || targetPlayer.isRemoved()) return;
+            
+            SimpleContainer targetEnderChest = targetPlayer.getEnderChestInventory();
+            
+            // Sync all 27 slots
+            for (int i = 0; i < 27; i++) {
+                ItemStack targetStack = targetEnderChest.getItem(i);
+                ItemStack guiStack = this.chestContainer.getItem(i);
+                
+                if (!ItemStack.matches(targetStack, guiStack)) {
+                    this.chestContainer.setItem(i, targetStack.copy());
+                }
+            }
         }
     }
 
@@ -628,6 +681,10 @@ public class InventoryCommand {
         private final ServerPlayer targetPlayer;
         private final Container chestContainer;
         private final ServerPlayer viewer;
+        
+        // Real-time sync fields
+        private int tickCounter = 0;
+        private static final int SYNC_INTERVAL = 5; // 5 ticks = 0.25 seconds
 
         public ChestEditableMenu(MenuType<?> menuType, int containerId, Inventory playerInv,
                                 Container container, int rows, ServerPlayer targetPlayer, ServerPlayer viewer) {
@@ -690,26 +747,11 @@ public class InventoryCommand {
         public void removed(Player player) {
             super.removed(player);
 
-            // When menu is closed, sync the changes back to the target player
+            // Final sync when closing (ensure no data loss)
+            syncToTarget();
+            
+            // Show success message
             if (targetPlayer != null && !targetPlayer.isRemoved()) {
-                Inventory targetInv = targetPlayer.getInventory();
-
-                // Sync main inventory (slots 0-35)
-                for (int i = 0; i < 36; i++) {
-                    targetInv.items.set(i, this.getContainer().getItem(i).copy());
-                }
-
-                // Sync armor (slots 36-39)
-                for (int i = 0; i < 4; i++) {
-                    targetInv.armor.set(i, this.getContainer().getItem(36 + i).copy());
-                }
-
-                // Sync offhand (slot 40)
-                targetInv.offhand.set(0, this.getContainer().getItem(40).copy());
-
-                // Mark inventory as changed
-                targetPlayer.inventoryMenu.broadcastChanges();
-
                 ChatUI.showSuccess((ServerPlayer) player, Component.translatable("invbackups.success.player_inventory_updated",
                         Component.literal(targetPlayer.getScoreboardName()).withStyle(net.minecraft.ChatFormatting.WHITE)).getString());
             }
@@ -718,6 +760,107 @@ public class InventoryCommand {
         @Override
         public boolean stillValid(Player player) {
             return targetPlayer != null && !targetPlayer.isRemoved();
+        }
+        
+        // ✅ Real-time synchronization: Called every tick
+        @Override
+        public void broadcastChanges() {
+            super.broadcastChanges();
+            
+            // Periodic sync every SYNC_INTERVAL ticks
+            tickCounter++;
+            if (tickCounter >= SYNC_INTERVAL) {
+                tickCounter = 0;
+                
+                // Bidirectional sync
+                syncToTarget();      // GUI → Target player
+                syncFromTarget();    // Target player → GUI
+            }
+        }
+        
+        /**
+         * Sync changes from GUI to target player's inventory
+         */
+        private void syncToTarget() {
+            if (targetPlayer == null || targetPlayer.isRemoved()) return;
+            
+            Inventory targetInv = targetPlayer.getInventory();
+            boolean changed = false;
+            
+            // Sync main inventory (slots 0-35)
+            for (int i = 0; i < 36; i++) {
+                ItemStack guiStack = this.chestContainer.getItem(i);
+                ItemStack targetStack = targetInv.items.get(i);
+                
+                // Only sync if different
+                if (!ItemStack.matches(guiStack, targetStack)) {
+                    targetInv.items.set(i, guiStack.copy());
+                    changed = true;
+                }
+            }
+            
+            // Sync armor (slots 36-39)
+            for (int i = 0; i < 4; i++) {
+                ItemStack guiStack = this.chestContainer.getItem(36 + i);
+                ItemStack targetStack = targetInv.armor.get(i);
+                
+                if (!ItemStack.matches(guiStack, targetStack)) {
+                    targetInv.armor.set(i, guiStack.copy());
+                    changed = true;
+                }
+            }
+            
+            // Sync offhand (slot 40)
+            ItemStack guiStack = this.chestContainer.getItem(40);
+            ItemStack targetStack = targetInv.offhand.get(0);
+            
+            if (!ItemStack.matches(guiStack, targetStack)) {
+                targetInv.offhand.set(0, guiStack.copy());
+                changed = true;
+            }
+            
+            // Notify client if changes occurred
+            if (changed) {
+                targetPlayer.inventoryMenu.broadcastChanges();
+            }
+        }
+        
+        /**
+         * Sync changes from target player's inventory to GUI
+         */
+        private void syncFromTarget() {
+            if (targetPlayer == null || targetPlayer.isRemoved()) return;
+            
+            Inventory targetInv = targetPlayer.getInventory();
+            
+            // Sync main inventory (slots 0-35)
+            for (int i = 0; i < 36; i++) {
+                ItemStack targetStack = targetInv.items.get(i);
+                ItemStack guiStack = this.chestContainer.getItem(i);
+                
+                // Only sync if different
+                if (!ItemStack.matches(targetStack, guiStack)) {
+                    this.chestContainer.setItem(i, targetStack.copy());
+                }
+            }
+            
+            // Sync armor (slots 36-39)
+            for (int i = 0; i < 4; i++) {
+                ItemStack targetStack = targetInv.armor.get(i);
+                ItemStack guiStack = this.chestContainer.getItem(36 + i);
+                
+                if (!ItemStack.matches(targetStack, guiStack)) {
+                    this.chestContainer.setItem(36 + i, targetStack.copy());
+                }
+            }
+            
+            // Sync offhand (slot 40)
+            ItemStack targetStack = targetInv.offhand.get(0);
+            ItemStack guiStack = this.chestContainer.getItem(40);
+            
+            if (!ItemStack.matches(targetStack, guiStack)) {
+                this.chestContainer.setItem(40, targetStack.copy());
+            }
         }
     }
 
@@ -1575,6 +1718,10 @@ public class InventoryCommand {
         private final ServerPlayer viewer;
         private final Container curiosContainer;
         
+        // Real-time sync fields
+        private int tickCounter = 0;
+        private static final int SYNC_INTERVAL = 5; // 5 ticks = 0.25 seconds
+        
         public CuriosEditableMenu(MenuType<?> menuType, int containerId,
                                   Inventory playerInv,
                                   ServerPlayer target,
@@ -1658,19 +1805,10 @@ public class InventoryCommand {
         public void removed(Player player) {
             super.removed(player);
             
-            // Sync changes back to target player's Curios
+            // Final sync when closing
+            syncToTarget();
+            
             if (targetPlayer != null && !targetPlayer.isRemoved()) {
-                Map<Integer, ItemStack> curiosItems = new java.util.HashMap<>();
-                
-                // Collect items from GUI slots 0-17
-                for (int i = 0; i < 18; i++) {
-                    ItemStack item = this.curiosContainer.getItem(i);
-                    curiosItems.put(1000 + i, item.copy());
-                }
-                
-                // Restore to target player
-                CuriosHelper.restoreCuriosItems(targetPlayer, curiosItems);
-                
                 ChatUI.showSuccess((ServerPlayer) player, 
                     Component.translatable("invbackups.success.curios_updated",
                         Component.literal(targetPlayer.getScoreboardName())
@@ -1681,6 +1819,57 @@ public class InventoryCommand {
         @Override
         public boolean stillValid(Player player) {
             return targetPlayer != null && !targetPlayer.isRemoved();
+        }
+        
+        // ✅ Real-time synchronization
+        @Override
+        public void broadcastChanges() {
+            super.broadcastChanges();
+            
+            tickCounter++;
+            if (tickCounter >= SYNC_INTERVAL) {
+                tickCounter = 0;
+                syncToTarget();      // GUI → Target Curios
+                syncFromTarget();    // Target Curios → GUI
+            }
+        }
+        
+        /**
+         * Sync changes from GUI to target player's Curios
+         */
+        private void syncToTarget() {
+            if (targetPlayer == null || targetPlayer.isRemoved()) return;
+            
+            Map<Integer, ItemStack> curiosItems = new java.util.HashMap<>();
+            
+            // Collect items from GUI slots 0-17 (18 Curios slots)
+            for (int i = 0; i < 18; i++) {
+                ItemStack item = this.curiosContainer.getItem(i);
+                curiosItems.put(1000 + i, item.copy());
+            }
+            
+            // Restore to target player
+            CuriosHelper.restoreCuriosItems(targetPlayer, curiosItems);
+        }
+        
+        /**
+         * Sync changes from target player's Curios to GUI
+         */
+        private void syncFromTarget() {
+            if (targetPlayer == null || targetPlayer.isRemoved()) return;
+            
+            // Load current Curios items from target player
+            Map<Integer, ItemStack> curiosItems = CuriosHelper.collectCuriosItems(targetPlayer);
+            
+            // Update GUI slots 0-17
+            for (int i = 0; i < 18; i++) {
+                ItemStack targetStack = curiosItems.getOrDefault(1000 + i, ItemStack.EMPTY);
+                ItemStack guiStack = this.curiosContainer.getItem(i);
+                
+                if (!ItemStack.matches(targetStack, guiStack)) {
+                    this.curiosContainer.setItem(i, targetStack.copy());
+                }
+            }
         }
     }
     

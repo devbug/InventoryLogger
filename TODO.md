@@ -272,9 +272,77 @@ GUI 열기 전 크리에이티브 모드로 자동 전환 후 복원
 
 ---
 
+## 🚨 긴급 (High Priority)
+
+### 2. 실시간 인벤토리 동기화 개선 🔄
+
+**발견일:** 2025-11-22  
+**우선순위:** HIGH  
+**예상 작업 시간:** 6시간
+
+#### 문제 상황
+`/inventory player <플레이어>` 명령으로 현재 인벤토리를 열었을 때, 아이템을 추가/제거해도 **창을 닫을 때까지 대상 플레이어에게 반영되지 않음**
+
+#### 재현 단계
+```
+1. 관리자: /inventory player Steve
+2. 관리자가 다이아몬드 검 추가
+3. ❌ Steve 화면에 보이지 않음 (실시간 반영 안됨)
+4. 관리자가 GUI 닫기
+5. ✅ Steve 화면에 다이아몬드 검 표시 (이제서야!)
+```
+
+#### 원인
+- `ChestEditableMenu.removed()` 메서드에서 **창 닫을 때만** 동기화
+- `SimpleContainer`는 독립된 복사본이며 원본과 실시간 연결 없음
+- 대상 플레이어 ↔ GUI 양방향 동기화 미구현
+
+#### 상세 계획
+📄 **별도 문서 참조:** `REALTIME_SYNC_PLAN.md`
+
+#### 해결 방안
+**Tick 기반 주기적 동기화 (권장)**
+```java
+@Override
+public void broadcastFullState() {
+    super.broadcastFullState();
+    
+    tickCounter++;
+    if (tickCounter >= SYNC_INTERVAL) { // 5틱 = 0.25초
+        tickCounter = 0;
+        syncToTarget();      // GUI → 대상 플레이어
+        syncFromTarget();    // 대상 플레이어 → GUI
+    }
+}
+```
+
+#### 구현 체크리스트
+- [ ] `ChestEditableMenu`에 틱 카운터 추가
+- [ ] `broadcastFullState()` 오버라이드
+- [ ] `syncToTarget()` 양방향 동기화
+- [ ] Hash 기반 변경 감지 최적화
+- [ ] `EnderChestEditableMenu` 동기화 적용
+- [ ] `CuriosEditableMenu` 동기화 적용
+- [ ] 설정 파일 동기화 주기 옵션 추가
+- [ ] 동시 접근 처리 (선택적 락 시스템)
+- [ ] 테스트 (실시간, Shift+클릭, 성능)
+
+#### 예상 효과
+- ✅ 0.25초 이내 실시간 반영
+- ✅ 관리자 ↔ 대상 플레이어 양방향 동기화
+- ✅ 사용자 혼란 제거
+- ✅ 직관적인 편집 경험
+
+#### 성능 영향
+- CPU: +0.01% ~ +0.1%
+- 메모리: 무시 가능
+- 서버 TPS 영향: < 0.1
+
+---
+
 ## 📊 중요 (Medium Priority)
 
-### 2. 경험치 백업 기능 추가 ✨
+### 3. 경험치 백업 기능 추가 ✨
 
 **발견일:** 2025-11-22  
 **우선순위:** MEDIUM  

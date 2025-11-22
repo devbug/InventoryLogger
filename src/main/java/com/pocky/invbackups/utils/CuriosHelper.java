@@ -202,4 +202,201 @@ public class CuriosHelper {
     public static boolean isCuriosSlot(int slotIndex) {
         return slotIndex >= CURIOS_SLOT_START;
     }
+    
+    /**
+     * Collect mapping of slot index to slot type (e.g., "ring", "necklace")
+     * Used for slot validation in GUI
+     */
+    public static Map<Integer, String> collectCuriosSlotTypes(Player player) {
+        Map<Integer, String> slotTypes = new HashMap<>();
+        
+        if (!isCuriosLoaded()) {
+            return slotTypes;
+        }
+        
+        try {
+            AtomicInteger slotIndex = new AtomicInteger(CURIOS_SLOT_START);
+            
+            Class<?> curiosApiClass = Class.forName("top.theillusivec4.curios.api.CuriosApi");
+            var getCuriosInventoryMethod = curiosApiClass.getMethod("getCuriosInventory", net.minecraft.world.entity.LivingEntity.class);
+            Object optionalInventory = getCuriosInventoryMethod.invoke(null, player);
+            
+            java.util.Optional<?> opt = (java.util.Optional<?>) optionalInventory;
+            if (opt.isPresent()) {
+                Object curiosInventory = opt.get();
+                
+                var getCuriosMethod = curiosInventory.getClass().getMethod("getCurios");
+                java.util.Map<?, ?> curiosMap = (java.util.Map<?, ?>) getCuriosMethod.invoke(curiosInventory);
+                
+                // Iterate with entries to get both slot type and handler
+                for (java.util.Map.Entry<?, ?> entry : curiosMap.entrySet()) {
+                    String slotType = (String) entry.getKey(); // "ring", "necklace", etc.
+                    Object stacksHandler = entry.getValue();
+                    
+                    var getStacksMethod = stacksHandler.getClass().getMethod("getStacks");
+                    Object itemHandler = getStacksMethod.invoke(stacksHandler);
+                    
+                    var getSlotsMethod = itemHandler.getClass().getMethod("getSlots");
+                    int slots = (int) getSlotsMethod.invoke(itemHandler);
+                    
+                    // Map each slot index to its type
+                    for (int i = 0; i < slots; i++) {
+                        slotTypes.put(slotIndex.getAndIncrement(), slotType);
+                    }
+                }
+            }
+            
+            InventoryBackupsMod.LOGGER.debug("Collected {} Curios slot types from player {}",
+                slotTypes.size(), player.getScoreboardName());
+            
+        } catch (Exception e) {
+            InventoryBackupsMod.LOGGER.error("Failed to collect Curios slot types", e);
+        }
+        
+        return slotTypes;
+    }
+    
+    /**
+     * Check if an item can be equipped in a specific Curios slot type
+     * Uses Curios API to validate item compatibility
+     */
+    public static boolean canEquipInCuriosSlot(ItemStack stack, String slotType, Player player) {
+        if (!isCuriosLoaded() || stack.isEmpty()) {
+            return true; // Allow empty stacks
+        }
+        
+        try {
+            // Use CuriosApi.getCurio(stack) to get ICurio capability
+            Class<?> curiosApiClass = Class.forName("top.theillusivec4.curios.api.CuriosApi");
+            var getCurioMethod = curiosApiClass.getMethod("getCurio", ItemStack.class);
+            Object optionalCurio = getCurioMethod.invoke(null, stack);
+            
+            java.util.Optional<?> opt = (java.util.Optional<?>) optionalCurio;
+            if (opt.isPresent()) {
+                Object curio = opt.get();
+                
+                // Try multiple method signatures (API versions may differ)
+                Boolean result = tryCanEquipMethods(curio, slotType, player);
+                
+                if (result != null) {
+                    return result;
+                }
+                
+                // If no canEquip method found, allow by default (safer for compatibility)
+                InventoryBackupsMod.LOGGER.warn("Could not find canEquip method for Curio item: {}, allowing by default", stack.getItem());
+                return true;
+            }
+            
+            // If no ICurio capability, item cannot be equipped as Curio
+            return false;
+            
+        } catch (Exception e) {
+            InventoryBackupsMod.LOGGER.error("Failed to check Curios equip validity for slot type: {}", slotType, e);
+            // Allow on error for compatibility (some modded items may not follow standard API)
+            return true;
+        }
+    }
+    
+    /**
+     * Try different canEquip method signatures for compatibility with different Curios API versions
+     */
+    private static Boolean tryCanEquipMethods(Object curio, String slotType, Player player) {
+        // Try signature 1: canEquip(String slotType, LivingEntity entity)
+        try {
+            var method = curio.getClass().getMethod("canEquip", String.class, net.minecraft.world.entity.LivingEntity.class);
+            return (Boolean) method.invoke(curio, slotType, player);
+        } catch (NoSuchMethodException e) {
+            // Try next signature
+        } catch (Exception e) {
+            InventoryBackupsMod.LOGGER.debug("Method signature 1 failed", e);
+        }
+        
+        // Try signature 2: canEquip(SlotContext context)
+        try {
+            Class<?> slotContextClass = Class.forName("top.theillusivec4.curios.api.SlotContext");
+            var method = curio.getClass().getMethod("canEquip", slotContextClass);
+            
+            // Create SlotContext (identifier, entity, index, onlyVisible)
+            var constructor = slotContextClass.getConstructor(
+                String.class,
+                net.minecraft.world.entity.LivingEntity.class,
+                int.class,
+                boolean.class
+            );
+            Object context = constructor.newInstance(slotType, player, 0, false);
+            
+            return (Boolean) method.invoke(curio, context);
+        } catch (ClassNotFoundException | NoSuchMethodException e) {
+            // Method not found
+        } catch (Exception e) {
+            InventoryBackupsMod.LOGGER.debug("Method signature 2 failed", e);
+        }
+        
+        // Try signature 3: canEquip(String identifier, LivingEntity livingEntity, int index)
+        try {
+            var method = curio.getClass().getMethod("canEquip", String.class, net.minecraft.world.entity.LivingEntity.class, int.class);
+            return (Boolean) method.invoke(curio, slotType, player, 0);
+        } catch (NoSuchMethodException e) {
+            // Method not found
+        } catch (Exception e) {
+            InventoryBackupsMod.LOGGER.debug("Method signature 3 failed", e);
+        }
+        
+        return null; // No compatible method found
+    }
+    
+    /**
+     * Get icon resource location for a Curios slot type
+     * Returns the texture path for the slot background icon
+     */
+    public static com.mojang.datafixers.util.Pair<net.minecraft.resources.ResourceLocation, net.minecraft.resources.ResourceLocation> getCuriosSlotIcon(String slotType) {
+        if (!isCuriosLoaded() || slotType == null) {
+            return null;
+        }
+        
+        try {
+            // Curios slot icons are typically at: curios:gui/slots/{slotType}
+            net.minecraft.resources.ResourceLocation atlasLocation = 
+                net.minecraft.resources.ResourceLocation.tryParse("minecraft:textures/atlas/blocks.png");
+            net.minecraft.resources.ResourceLocation iconLocation = 
+                net.minecraft.resources.ResourceLocation.tryParse("curios:gui/slot/empty_" + slotType + "_slot");
+            
+            if (atlasLocation != null && iconLocation != null) {
+                return com.mojang.datafixers.util.Pair.of(atlasLocation, iconLocation);
+            }
+        } catch (Exception e) {
+            InventoryBackupsMod.LOGGER.debug("Could not load Curios icon for slot type: {}", slotType);
+        }
+        
+        return null;
+    }
+    
+    /**
+     * Get user-friendly display name for a Curios slot type
+     * Converts technical names like "ring" to "Ring Slot"
+     */
+    public static String getCuriosSlotDisplayName(String slotType) {
+        if (slotType == null) {
+            return "Unknown Slot";
+        }
+        
+        // Common Curios slot types with friendly names
+        return switch (slotType.toLowerCase()) {
+            case "ring" -> "Ring";
+            case "necklace" -> "Necklace";
+            case "bracelet" -> "Bracelet";
+            case "belt" -> "Belt";
+            case "body" -> "Body";
+            case "charm" -> "Charm";
+            case "head" -> "Head Accessory";
+            case "hands" -> "Hands";
+            case "back" -> "Back";
+            case "curio" -> "Curio";
+            default -> {
+                // Capitalize first letter
+                String name = slotType.substring(0, 1).toUpperCase() + slotType.substring(1);
+                yield name;
+            }
+        };
+    }
 }

@@ -717,6 +717,72 @@ public class InventoryCommand {
                     new net.minecraft.world.item.component.ItemLore(curiosLore));
                 container.setItem(48, curiosButton);
             }
+            
+            // Replace armor and button slots with validation slots
+            replaceArmorSlots();
+        }
+        
+        /**
+         * Replace armor slots (36-39) and button slot (48) with validation slots
+         * Prevents placing wrong armor types and protects button slot
+         */
+        private void replaceArmorSlots() {
+            // Armor slot types in order: FEET, LEGS, CHEST, HEAD
+            net.minecraft.world.entity.EquipmentSlot[] armorTypes = {
+                net.minecraft.world.entity.EquipmentSlot.FEET,   // 36: Boots
+                net.minecraft.world.entity.EquipmentSlot.LEGS,   // 37: Leggings
+                net.minecraft.world.entity.EquipmentSlot.CHEST,  // 38: Chestplate
+                net.minecraft.world.entity.EquipmentSlot.HEAD    // 39: Helmet
+            };
+            
+            // Replace armor slots (36-39)
+            for (int i = 0; i < 4; i++) {
+                int slotIndex = 36 + i;
+                Slot oldSlot = this.slots.get(slotIndex);
+                
+                Slot newSlot = new ArmorSlot(
+                    this.chestContainer,
+                    slotIndex,
+                    oldSlot.x,
+                    oldSlot.y,
+                    armorTypes[i]
+                );
+                
+                this.slots.set(slotIndex, newSlot);
+            }
+            
+            // Slot 40 (offhand) - keep as normal slot, no validation needed
+            
+            // Replace empty slots (41-47) with read-only slots to prevent item loss
+            for (int i = 41; i <= 47; i++) {
+                Slot oldSlot = this.slots.get(i);
+                this.slots.set(i, new ReadOnlySlot(
+                    this.chestContainer,
+                    i,
+                    oldSlot.x,
+                    oldSlot.y
+                ));
+            }
+            
+            // Replace Curios button slot (48) with read-only slot
+            Slot buttonSlot = this.slots.get(48);
+            this.slots.set(48, new ReadOnlySlot(
+                this.chestContainer,
+                48,
+                buttonSlot.x,
+                buttonSlot.y
+            ));
+            
+            // Replace remaining empty slots (49-53) with read-only slots
+            for (int i = 49; i <= 53; i++) {
+                Slot oldSlot = this.slots.get(i);
+                this.slots.set(i, new ReadOnlySlot(
+                    this.chestContainer,
+                    i,
+                    oldSlot.x,
+                    oldSlot.y
+                ));
+            }
         }
 
         @Override
@@ -860,6 +926,81 @@ public class InventoryCommand {
             
             if (!ItemStack.matches(targetStack, guiStack)) {
                 this.chestContainer.setItem(40, targetStack.copy());
+            }
+        }
+        
+        /**
+         * Custom armor slot that validates armor type
+         * Only allows correct armor type for each slot (helmet, chestplate, leggings, boots)
+         */
+        private static class ArmorSlot extends Slot {
+            private final net.minecraft.world.entity.EquipmentSlot equipmentSlot;
+            
+            public ArmorSlot(Container container, int slot, int x, int y, net.minecraft.world.entity.EquipmentSlot equipSlot) {
+                super(container, slot, x, y);
+                this.equipmentSlot = equipSlot;
+            }
+            
+            @Override
+            public boolean mayPlace(ItemStack stack) {
+                if (stack.isEmpty()) return true;
+                
+                // Check if item is armor
+                if (!(stack.getItem() instanceof net.minecraft.world.item.ArmorItem armorItem)) {
+                    return false;
+                }
+                
+                // Check if armor type matches slot
+                return armorItem.getEquipmentSlot() == this.equipmentSlot;
+            }
+            
+            @Override
+            public int getMaxStackSize() {
+                return 1; // Armor slots only hold 1 item
+            }
+            
+            @Override
+            public com.mojang.datafixers.util.Pair<net.minecraft.resources.ResourceLocation, net.minecraft.resources.ResourceLocation> getNoItemIcon() {
+                // Show background icon for empty armor slots
+                return switch (this.equipmentSlot) {
+                    case HEAD -> com.mojang.datafixers.util.Pair.of(
+                        net.minecraft.world.inventory.InventoryMenu.BLOCK_ATLAS,
+                        net.minecraft.world.inventory.InventoryMenu.EMPTY_ARMOR_SLOT_HELMET
+                    );
+                    case CHEST -> com.mojang.datafixers.util.Pair.of(
+                        net.minecraft.world.inventory.InventoryMenu.BLOCK_ATLAS,
+                        net.minecraft.world.inventory.InventoryMenu.EMPTY_ARMOR_SLOT_CHESTPLATE
+                    );
+                    case LEGS -> com.mojang.datafixers.util.Pair.of(
+                        net.minecraft.world.inventory.InventoryMenu.BLOCK_ATLAS,
+                        net.minecraft.world.inventory.InventoryMenu.EMPTY_ARMOR_SLOT_LEGGINGS
+                    );
+                    case FEET -> com.mojang.datafixers.util.Pair.of(
+                        net.minecraft.world.inventory.InventoryMenu.BLOCK_ATLAS,
+                        net.minecraft.world.inventory.InventoryMenu.EMPTY_ARMOR_SLOT_BOOTS
+                    );
+                    default -> null;
+                };
+            }
+        }
+        
+        /**
+         * Read-only slot that cannot be modified
+         * Used for button slots and other UI elements
+         */
+        private static class ReadOnlySlot extends Slot {
+            public ReadOnlySlot(Container container, int slot, int x, int y) {
+                super(container, slot, x, y);
+            }
+            
+            @Override
+            public boolean mayPlace(ItemStack stack) {
+                return false; // Cannot place any items
+            }
+            
+            @Override
+            public boolean mayPickup(Player player) {
+                return false; // Cannot pick up items
             }
         }
     }
@@ -1733,32 +1874,59 @@ public class InventoryCommand {
             
             populateCuriosSlots();
             addNavigationButtons();
+            replaceCuriosSlots(); // Replace with validation slots
         }
         
         private void populateCuriosSlots() {
             // Load current Curios items from target player
             Map<Integer, ItemStack> curiosItems = CuriosHelper.collectCuriosItems(targetPlayer);
             
-            curiosItems.entrySet().stream()
-                .filter(e -> e.getKey() >= 1000 && e.getKey() < 1016)
-                .forEach(entry -> {
-                    int curiosIndex = entry.getKey() - 1000;  // Convert to 0-15
-                    if (curiosIndex >= 0 && curiosIndex < 18) {
-                        this.curiosContainer.setItem(curiosIndex, entry.getValue().copy());
-                    }
-                });
+            // Populate slots with actual items only (no placeholders)
+            for (int i = 0; i < 18; i++) {
+                int curiosKey = 1000 + i;
+                ItemStack item = curiosItems.get(curiosKey);
+                
+                if (item != null && !item.isEmpty()) {
+                    this.curiosContainer.setItem(i, item.copy());
+                }
+                // Empty slots remain empty - no placeholder
+            }
         }
         
         private void addNavigationButtons() {
-            // Info button (slot 49)
+            // Info button (slot 49) with slot type information
             ItemStack infoButton = new ItemStack(Items.BOOK);
             infoButton.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME,
                 Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.curios.info.title"))
                     .withStyle(net.minecraft.ChatFormatting.AQUA));
             
             List<Component> infoLore = new ArrayList<>();
-            infoLore.add(Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.curios.info.total", "16"))
+            infoLore.add(Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.curios.info.total", "18"))
                 .withStyle(net.minecraft.ChatFormatting.GRAY));
+            infoLore.add(Component.empty());
+            
+            // Add slot type information
+            Map<Integer, String> slotTypes = CuriosHelper.collectCuriosSlotTypes(targetPlayer);
+            infoLore.add(Component.literal("Available Slots:")
+                .withStyle(net.minecraft.ChatFormatting.GOLD));
+            
+            // Group by slot type and show counts
+            Map<String, Integer> typeCounts = new java.util.LinkedHashMap<>();
+            for (int i = 0; i < 18; i++) {
+                String slotType = slotTypes.get(1000 + i);
+                if (slotType != null) {
+                    typeCounts.merge(slotType, 1, Integer::sum);
+                }
+            }
+            
+            // Display slot types with counts
+            for (Map.Entry<String, Integer> entry : typeCounts.entrySet()) {
+                String displayName = CuriosHelper.getCuriosSlotDisplayName(entry.getKey());
+                String count = entry.getValue() > 1 ? " x" + entry.getValue() : "";
+                infoLore.add(Component.literal("  • " + displayName + count)
+                    .withStyle(net.minecraft.ChatFormatting.YELLOW));
+            }
+            
             infoLore.add(Component.empty());
             infoLore.add(Component.literal(com.pocky.invbackups.utils.TranslationHelper.translate(viewer, "invbackups.curios.info.edit"))
                 .withStyle(net.minecraft.ChatFormatting.GREEN));
@@ -1778,6 +1946,63 @@ public class InventoryCommand {
             backButton.set(net.minecraft.core.component.DataComponents.LORE,
                 new net.minecraft.world.item.component.ItemLore(backLore));
             this.curiosContainer.setItem(53, backButton);
+        }
+        
+        /**
+         * Replace Curios slots (0-17) with validation slots
+         * Prevents placing wrong item types in Curios slots
+         */
+        private void replaceCuriosSlots() {
+            // Get slot type mapping from Curios API
+            Map<Integer, String> slotTypes = CuriosHelper.collectCuriosSlotTypes(targetPlayer);
+            
+            // Replace first 18 slots (Curios slots) with validation slots
+            for (int i = 0; i < 18; i++) {
+                Slot oldSlot = this.slots.get(i);
+                String slotType = slotTypes.get(1000 + i); // Curios uses 1000+ indexing
+                
+                if (slotType != null) {
+                    Slot newSlot = new CuriosSlot(
+                        this.curiosContainer,
+                        i,
+                        oldSlot.x,
+                        oldSlot.y,
+                        slotType,
+                        targetPlayer
+                    );
+                    this.slots.set(i, newSlot);
+                }
+            }
+            
+            // Replace empty slots (18-48) with read-only slots to prevent item loss
+            for (int i = 18; i < 49; i++) {
+                Slot oldSlot = this.slots.get(i);
+                this.slots.set(i, new ReadOnlySlot(
+                    this.curiosContainer,
+                    i,
+                    oldSlot.x,
+                    oldSlot.y
+                ));
+            }
+            
+            // Replace info button (slot 49) with read-only slot
+            Slot infoSlot = this.slots.get(49);
+            this.slots.set(49, new ReadOnlySlot(this.curiosContainer, 49, infoSlot.x, infoSlot.y));
+            
+            // Replace empty slots (50-52) with read-only slots
+            for (int i = 50; i <= 52; i++) {
+                Slot oldSlot = this.slots.get(i);
+                this.slots.set(i, new ReadOnlySlot(
+                    this.curiosContainer,
+                    i,
+                    oldSlot.x,
+                    oldSlot.y
+                ));
+            }
+            
+            // Replace back button (slot 53) with read-only slot
+            Slot backSlot = this.slots.get(53);
+            this.slots.set(53, new ReadOnlySlot(this.curiosContainer, 53, backSlot.x, backSlot.y));
         }
         
         @Override
@@ -1869,6 +2094,65 @@ public class InventoryCommand {
                 if (!ItemStack.matches(targetStack, guiStack)) {
                     this.curiosContainer.setItem(i, targetStack.copy());
                 }
+            }
+        }
+        
+        /**
+         * Custom Curios slot that validates item type using Curios API
+         * Only allows items that can be equipped in the specific Curios slot type
+         */
+        private static class CuriosSlot extends Slot {
+            private final String slotType;
+            private final ServerPlayer targetPlayer;
+            
+            public CuriosSlot(Container container, int slot, int x, int y, String type, ServerPlayer player) {
+                super(container, slot, x, y);
+                this.slotType = type;
+                this.targetPlayer = player;
+            }
+            
+            @Override
+            public boolean mayPlace(ItemStack stack) {
+                if (stack.isEmpty()) return true;
+                
+                // Use Curios API to validate item
+                return CuriosHelper.canEquipInCuriosSlot(stack, slotType, targetPlayer);
+            }
+            
+            @Override
+            public int getMaxStackSize() {
+                return 1; // Curios items typically stack to 1
+            }
+            
+            @Override
+            public com.mojang.datafixers.util.Pair<net.minecraft.resources.ResourceLocation, net.minecraft.resources.ResourceLocation> getNoItemIcon() {
+                // Try to get Curios slot icon
+                var icon = CuriosHelper.getCuriosSlotIcon(slotType);
+                if (icon != null) {
+                    return icon;
+                }
+                // Fallback: no icon (will show default empty slot)
+                return null;
+            }
+        }
+        
+        /**
+         * Read-only slot that cannot be modified
+         * Used for button slots and other UI elements
+         */
+        private static class ReadOnlySlot extends Slot {
+            public ReadOnlySlot(Container container, int slot, int x, int y) {
+                super(container, slot, x, y);
+            }
+            
+            @Override
+            public boolean mayPlace(ItemStack stack) {
+                return false; // Cannot place any items
+            }
+            
+            @Override
+            public boolean mayPickup(Player player) {
+                return false; // Cannot pick up items
             }
         }
     }
